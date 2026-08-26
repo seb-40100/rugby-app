@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Présences rugby</title>
+
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+    }
+
+    #login {
+      margin-bottom: 20px;
+    }
+
+    #status {
+      margin: 20px 0;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      background: #f5f5f5;
+      padding: 15px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Présences rugby</h1>
+
+  <!-- Bouton de connexion -->
+  <div id="login">
+    <button id="loginButton">
+      Se connecter avec Google
+    </button>
+  </div>
+
+  <div id="status"></div>
+
+  <pre id="result"></pre>
+
+  <script>
+
+    // ============================================================
+    // CONFIGURATION
+    // ============================================================
+
+    // À remplacer par ton Client ID OAuth Google
+    const GOOGLE_CLIENT_ID =
+      "517412786952-ocuhpuucqitb90g6dkruo9nvqfnauvts.apps.googleusercontent.com";
+
+    // ID du fichier Google Sheets
+    const SPREADSHEET_ID =
+      "1HG7kpjsGfZsjQwyx00rI_cqMLlgVIMOa";
+
+    // Nom de la feuille
+    const SHEET_NAME = "présences";
+
+    // Accès en lecture seule
+    const SCOPES =
+      "https://www.googleapis.com/auth/spreadsheets.readonly";
+
+
+    // ============================================================
+    // VARIABLES
+    // ============================================================
+
+    let tokenClient;
+    let accessToken = null;
+
+
+    // ============================================================
+    // INITIALISATION
+    // ============================================================
+
+    window.addEventListener("load", () => {
+
+      document
+        .getElementById("loginButton")
+        .addEventListener("click", login);
+
+      waitForGoogle();
+
+    });
+
+
+    // ============================================================
+    // ATTENDRE LE CHARGEMENT DE GOOGLE IDENTITY SERVICES
+    // ============================================================
+
+    function waitForGoogle() {
+
+      if (
+        window.google &&
+        google.accounts &&
+        google.accounts.oauth2
+      ) {
+
+        tokenClient =
+          google.accounts.oauth2.initTokenClient({
+
+            client_id: GOOGLE_CLIENT_ID,
+
+            scope: SCOPES,
+
+            callback: async (response) => {
+
+              if (response.error) {
+                console.error(response);
+                showError(
+                  "Erreur d'authentification Google."
+                );
+                return;
+              }
+
+              accessToken = response.access_token;
+
+              await loadPresences();
+            }
+
+          });
+
+      } else {
+
+        setTimeout(waitForGoogle, 100);
+
+      }
+
+    }
+
+
+    // ============================================================
+    // CONNEXION GOOGLE
+    // ============================================================
+
+    function login() {
+
+      if (!tokenClient) {
+
+        showError(
+          "Google Identity Services n'est pas encore chargé."
+        );
+
+        return;
+      }
+
+      tokenClient.requestAccessToken({
+        prompt: "consent"
+      });
+
+    }
+
+
+    // ============================================================
+    // LECTURE DE GOOGLE SHEETS
+    // ============================================================
+
+    async function loadPresences() {
+
+      showStatus("Lecture des présences...");
+
+      const range =
+        encodeURIComponent(
+          `'${SHEET_NAME}'!A:ZZ`
+        );
+
+      const url =
+        `https://sheets.googleapis.com/v4/spreadsheets/` +
+        `${SPREADSHEET_ID}/values/${range}`;
+
+
+      try {
+
+        const response = await fetch(url, {
+
+          method: "GET",
+
+          headers: {
+            "Authorization":
+              `Bearer ${accessToken}`
+          }
+
+        });
+
+
+        const data = await response.json();
+
+
+        if (!response.ok) {
+
+          console.error(data);
+
+          if (response.status === 401) {
+
+            accessToken = null;
+
+            showError(
+              "Votre session Google a expiré. " +
+              "Veuillez vous reconnecter."
+            );
+
+          } else if (response.status === 403) {
+
+            showError(
+              "Votre compte Google n'a pas accès " +
+              "à cette feuille."
+            );
+
+          } else {
+
+            showError(
+              data.error?.message ||
+              "Erreur lors de la lecture de Google Sheets."
+            );
+          }
+
+          return;
+        }
+
+
+        showStatus(
+          "Connecté et données récupérées."
+        );
+
+        document
+          .getElementById("result")
+          .textContent =
+            JSON.stringify(data, null, 2);
+
+
+        console.log("Données Sheets :", data);
+
+      }
+
+      catch (error) {
+
+        console.error(error);
+
+        showError(
+          "Erreur réseau lors de l'accès à Google Sheets."
+        );
+
+      }
+
+    }
+
+
+    // ============================================================
+    // AFFICHAGE
+    // ============================================================
+
+    function showStatus(message) {
+
+      document
+        .getElementById("status")
+        .textContent = message;
+
+    }
+
+
+    function showError(message) {
+
+      document
+        .getElementById("status")
+        .textContent =
+          "❌ " + message;
+
+    }
+
+  </script>
+
+</body>
+</html>
