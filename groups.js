@@ -45,20 +45,24 @@ function waitForGoogle() {
     btnGenerateGroups.disabled = false;
 }
 
-window.addEventListener('load', () => {
-    document.addEventListener('DOMContentLoaded', () => {
-        const btnConnectSheets = document.getElementById('btnConnectSheets');
-        if (btnConnectSheets) {
+document.addEventListener('DOMContentLoaded', () => {
+    const btnConnectSheets = document.getElementById('btnConnectSheets');
+
+    function initConnectBtn() {
+        if (!tokenClient) {
+            setTimeout(initConnectBtn, 100);
+            return;
+        }
+        if (btnConnectSheets && !btnConnectSheets.dataset.bound) {
+            btnConnectSheets.dataset.bound = 'true';
             btnConnectSheets.addEventListener('click', () => {
-                if (!tokenClient) {
-                    showToast('Initialisation en cours...', 'info');
-                    return;
-                }
                 tokenClient.requestAccessToken({ prompt: 'consent' });
             });
         }
-        waitForGoogle();
-    });
+    }
+
+    initConnectBtn();
+});
 });
 
 async function loadSheetsData() {
@@ -313,6 +317,8 @@ btnCopyGroups.addEventListener('click', () => {
         showToast('Erreur lors de la copie.', 'error');
     });
 });
+
+waitForGoogle();
 
 // ============================================================
 // TOAST (simple inline)
