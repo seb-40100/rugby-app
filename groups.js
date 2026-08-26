@@ -37,8 +37,8 @@ function waitForGoogle() {
                 return;
             }
             accessToken = response.access_token;
-            btnGenerateGroups.disabled = false;
-            showToast('Données chargées avec succès !', 'success');
+            btnGenerateGroups.disabled = true;
+            showToast('Connexion réussie, chargement des données...', 'info');
             await loadSheetsData();
         }
     });
@@ -66,12 +66,21 @@ async function loadSheetsData() {
         });
         const data = await response.json();
         if (!response.ok) {
-            console.error(data.error);
+            console.error('Sheets error:', data.error);
+            showToast('Erreur : ' + (data.error?.message || 'impossible de lire la feuille'), 'error');
             return;
         }
         allPlayers = parseSheetsJSON(data.values);
+        console.log('Joueurs chargés :', allPlayers.length);
+        if (allPlayers.length > 0) {
+            showToast(`${allPlayers.length} joueurs chargés !`, 'success');
+            btnGenerateGroups.disabled = false;
+        } else {
+            showToast('Aucun joueur trouvé dans la feuille.', 'error');
+        }
     } catch (err) {
         console.error(err);
+        showToast('Erreur réseau : ' + err.message, 'error');
     }
 }
 
