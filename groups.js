@@ -70,6 +70,7 @@ async function loadSheetsData() {
             showToast('Erreur : ' + (data.error?.message || 'impossible de lire la feuille'), 'error');
             return;
         }
+        console.log('Réponse JSON complète :', JSON.stringify(data).substring(0, 200));
         allPlayers = parseSheetsJSON(data.values);
         console.log('Joueurs chargés :', allPlayers.length);
         if (allPlayers.length > 0) {
@@ -88,7 +89,8 @@ async function loadSheetsData() {
 // JSON PARSER
 // ============================================================
 function parseSheetsJSON(values) {
-    if (!values || values.length < 5) return [];
+    console.log('parseSheetsJSON input:', values ? `${values.length} lignes` : 'null/undefined');
+    if (!values || !Array.isArray(values) || values.length < 5) return [];
 
     // Find the header row (row with "Nom"), skip metadata rows
     let headerRowIndex = -1;
