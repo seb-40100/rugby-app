@@ -45,25 +45,16 @@ function waitForGoogle() {
     btnGenerateGroups.disabled = false;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    const btnConnectSheets = document.getElementById('btnConnectSheets');
+// Start as soon as the script loads
+waitForGoogle();
 
-    function initConnectBtn() {
-        if (!tokenClient) {
-            setTimeout(initConnectBtn, 100);
-            return;
-        }
-        if (btnConnectSheets && !btnConnectSheets.dataset.bound) {
-            btnConnectSheets.dataset.bound = 'true';
-            btnConnectSheets.addEventListener('click', () => {
-                tokenClient.requestAccessToken({ prompt: 'consent' });
-            });
-        }
-    }
-
-    initConnectBtn();
-});
-});
+// Set up connect button immediately (script is at end of body, DOM is ready)
+const btnConnectSheets = document.getElementById('btnConnectSheets');
+if (btnConnectSheets) {
+    btnConnectSheets.addEventListener('click', () => {
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+    });
+}
 
 async function loadSheetsData() {
     const range = encodeURIComponent(`'${SHEET_NAME}'!A:ZZ`);
@@ -317,8 +308,6 @@ btnCopyGroups.addEventListener('click', () => {
         showToast('Erreur lors de la copie.', 'error');
     });
 });
-
-waitForGoogle();
 
 // ============================================================
 // TOAST (simple inline)
