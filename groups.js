@@ -46,11 +46,19 @@ function waitForGoogle() {
 }
 
 window.addEventListener('load', () => {
-    document.getElementById('btnConnect')?.addEventListener('click', () => {
-        if (!tokenClient) return;
-        tokenClient.requestAccessToken({ prompt: 'consent' });
+    document.addEventListener('DOMContentLoaded', () => {
+        const btnConnectSheets = document.getElementById('btnConnectSheets');
+        if (btnConnectSheets) {
+            btnConnectSheets.addEventListener('click', () => {
+                if (!tokenClient) {
+                    showToast('Initialisation en cours...', 'info');
+                    return;
+                }
+                tokenClient.requestAccessToken({ prompt: 'consent' });
+            });
+        }
+        waitForGoogle();
     });
-    waitForGoogle();
 });
 
 async function loadSheetsData() {
