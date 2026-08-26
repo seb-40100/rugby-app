@@ -9,6 +9,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -173,14 +175,15 @@ Absents (2)
                 </svg>
                 Données du serveur
             </div>
+            <div id="groups-status" style="padding: 2rem 1rem; text-align: center; color: var(--text-muted);">Connectez-vous pour charger les données.</div>
             <div class="table-container" style="max-height: none;">
-                <pre id="jsonOutput" style="padding: 1rem; font-family: 'Inter', monospace; font-size: 0.85rem; color: #a5b4fc; white-space: pre-wrap; word-break: break-word; margin: 0;">Cliquez sur "Charger les données" pour afficher le JSON.</pre>
+                <pre id="jsonOutput" style="padding: 1rem; font-family: 'Inter', monospace; font-size: 0.85rem; color: #a5b4fc; white-space: pre-wrap; word-break: break-word; margin: 0; display: none;"></pre>
             </div>
-            <button type="button" class="btn-export" id="btnLoadData" style="width: 100%;">
+            <button type="button" class="btn-export" id="btnConnect" style="width: 100%;">
                 <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                 </svg>
-                Charger les données
+                Se connecter
             </button>
         </div>
     </div>

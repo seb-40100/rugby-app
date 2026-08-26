@@ -1,21 +1,82 @@
-const JSON_URL = 'https://script.google.com/macros/s/AKfycbwtvTP19_ISw8AZ34J4FNuY54bkmUKFN1FRkuZ_qa7Mq2QyXFg0fTEI2t92TBy5eIeH/exec';
-const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
-const btnLoadData = document.getElementById('btnLoadData');
-const jsonOutput = document.getElementById('jsonOutput');
+const GOOGLE_CLIENT_ID = '517412786952-ocuhpuucqitb90g6dkruo9nvqfnauvts.apps.googleusercontent.com';
+const SPREADSHEET_ID = '16bfjaSFQIShF6jUNiQhh76gonKqdVlq6DRzdAOSSIQE';
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly';
 
-btnLoadData.addEventListener('click', async () => {
-    btnLoadData.disabled = true;
-    btnLoadData.textContent = 'Chargement...';
-    jsonOutput.textContent = '';
-    
-    try {
-        const response = await fetch(CORS_PROXY + encodeURIComponent(JSON_URL));
-        const data = await response.json();
-        jsonOutput.textContent = JSON.stringify(data, null, 2);
-    } catch (err) {
-        jsonOutput.textContent = 'Erreur lors du chargement : ' + err.message;
-    } finally {
-        btnLoadData.disabled = false;
-        btnLoadData.innerHTML = '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> Charger les données';
+let tokenClient;
+let accessToken = null;
+
+const btnConnect = document.getElementById('btnConnect');
+const jsonOutput = document.getElementById('jsonOutput');
+const groupsStatus = document.getElementById('groups-status');
+
+// Wait for Google Identity Services
+function waitForGoogle() {
+    if (window.google && google.accounts && google.accounts.oauth2) {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: GOOGLE_CLIENT_ID,
+            scope: SCOPES,
+            callback: async (response) => {
+                if (response.error) {
+                    showError('Erreur d\'authentification Google.');
+                    return;
+                }
+                accessToken = response.access_token;
+                btnConnect.textContent = 'Données chargées';
+                btnConnect.disabled = true;
+                groupsStatus.style.display = 'none';
+                jsonOutput.style.display = 'block';
+                await loadSheetsData();
+            }
+        });
+    } else {
+        setTimeout(waitForGoogle, 100);
     }
+}
+
+btnConnect.addEventListener('click', () => {
+    if (!tokenClient) {
+        showError("Google Identity Services n'est pas encore chargé.");
+        return;
+    }
+    btnConnect.textContent = 'Connexion...';
+    tokenClient.requestAccessToken({ prompt: 'consent' });
 });
+
+async function loadSheetsData() {
+    const range = encodeURIComponent('\'présences\'!A:ZZ');
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}`;
+
+    try {
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                accessToken = null;
+                showError('Session expirée. reconnectez-vous.');
+            } else {
+                showError(data.error?.message || 'Erreur Google Sheets.');
+            }
+            return;
+        }
+
+        jsonOutput.textContent = JSON.stringify(data, null, 2);
+        groupsStatus.textContent = 'Données récupérées avec succès.';
+        groupsStatus.style.display = 'block';
+    } catch (error) {
+        showError('Erreur réseau.');
+        console.error(error);
+    }
+}
+
+function showError(message) {
+    groupsStatus.textContent = '❌ ' + message;
+    groupsStatus.style.display = 'block';
+    btnConnect.textContent = 'Se connecter';
+    btnConnect.disabled = false;
+}
+
+waitForGoogle();
