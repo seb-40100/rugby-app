@@ -1,4 +1,5 @@
 const JSON_URL = 'https://script.google.com/macros/s/AKfycbwtvTP19_ISw8AZ34J4FNuY54bkmUKFN1FRkuZ_qa7Mq2QyXFg0fTEI2t92TBy5eIeH/exec';
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 const btnLoadData = document.getElementById('btnLoadData');
 const jsonOutput = document.getElementById('jsonOutput');
 
@@ -8,7 +9,7 @@ btnLoadData.addEventListener('click', async () => {
     jsonOutput.textContent = '';
     
     try {
-        const response = await fetch(JSON_URL);
+        const response = await fetch(CORS_PROXY + encodeURIComponent(JSON_URL));
         const data = await response.json();
         jsonOutput.textContent = JSON.stringify(data, null, 2);
     } catch (err) {
