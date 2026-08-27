@@ -76,12 +76,15 @@ function parseSheetsJSON(values) {
     if (headerRowIndex === -1) return [];
 
     const dates = [];
+    console.log('headerRow:', values[headerRowIndex]);
     for (let c = 5; c < values[headerRowIndex].length; c++) {
         const cell = values[headerRowIndex][c]?.trim();
+        console.log('cell', c, ':', JSON.stringify(cell));
         if (cell && !cell.includes('Bilan') && cell.length > 0 && !/^\d+$/.test(cell)) {
             dates.push(cell);
         }
     }
+    console.log('extracted dates:', dates);
 
     const players = [];
     for (let r = headerRowIndex + 1; r < values.length; r++) {
