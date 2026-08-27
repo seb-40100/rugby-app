@@ -54,6 +54,7 @@ async function loadSheetsData() {
             return;
         }
         allPlayers = parseSheetsJSON(data.values);
+        trainingDates = Object.keys(allPlayers.length > 0 ? allPlayers[0].presences : {});
         if (allPlayers.length > 0) {
             populateTrainingSelect();
             showToast(`${allPlayers.length} joueurs chargés !`, 'success');
