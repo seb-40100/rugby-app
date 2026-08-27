@@ -2,7 +2,7 @@
 // CONFIGURATION
 // ============================================================
 const SPREADSHEET_ID = '16bfjaSFQIShF6jUNiQhh76gonKqdVlq6DRzdAOSSIQE';
-const SHEET_NAME = 'présences';
+const SHEET_NAME = 'presences';
 let allPlayers = [];
 let generatedGroups = [];
 
