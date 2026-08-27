@@ -1,25 +1,17 @@
-// ============================================================
-// CONFIGURATION
-// ============================================================
 const SPREADSHEET_ID = '16bfjaSFQIShF6jUNiQhh76gonKqdVlq6DRzdAOSSIQE';
 const SHEET_NAME = 'presences';
 let allPlayers = [];
+let trainingDates = [];
 let generatedGroups = [];
 
-// ============================================================
-// DOM ELEMENTS
-// ============================================================
+const trainingSelect = document.getElementById('trainingSelect');
+const groupCountInput = document.getElementById('groupCount');
+const targetLevelsContainer = document.getElementById('targetLevels');
 const btnGenerateGroups = document.getElementById('btnGenerateGroups');
 const btnCopyGroups = document.getElementById('btnCopyGroups');
-const groupCountInput = document.getElementById('groupCount');
-const levelPrecisionSelect = document.getElementById('levelPrecision');
-const respectBalanceCheckbox = document.getElementById('respectBalanceCheckbox');
-const groupsStats = document.getElementById('groupsStats');
+const btnReset = document.getElementById('btnReset');
 const groupsOutput = document.getElementById('groupsOutput');
 
-// ============================================================
-// LOAD DATA VIA GOOGLE SHEETS API (OAuth)
-// ============================================================
 let tokenClient;
 let accessToken = null;
 
@@ -32,23 +24,15 @@ function waitForGoogle() {
         client_id: '517412786952-ocuhpuucqitb90g6dkruo9nvqfnauvts.apps.googleusercontent.com',
         scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
         callback: async (response) => {
-            if (response.error) {
-                console.error(response);
-                return;
-            }
+            if (response.error) { console.error(response); return; }
             accessToken = response.access_token;
-            btnGenerateGroups.disabled = true;
-            showToast('Connexion réussie, chargement des données...', 'info');
+            showToast('Connexion réussie, chargement...', 'info');
             await loadSheetsData();
         }
     });
-    btnGenerateGroups.disabled = false;
 }
-
-// Start as soon as the script loads
 waitForGoogle();
 
-// Set up connect button immediately (script is at end of body, DOM is ready)
 const btnConnectSheets = document.getElementById('btnConnectSheets');
 if (btnConnectSheets) {
     btnConnectSheets.addEventListener('click', () => {
@@ -66,265 +50,212 @@ async function loadSheetsData() {
         });
         const data = await response.json();
         if (!response.ok) {
-            console.error('Sheets error:', data.error);
-            showToast('Erreur : ' + (data.error?.message || 'impossible de lire la feuille'), 'error');
+            showToast('Erreur : ' + (data.error?.message || ''), 'error');
             return;
         }
-        console.log('Réponse JSON complète :', JSON.stringify(data).substring(0, 200));
         allPlayers = parseSheetsJSON(data.values);
-        console.log('Joueurs chargés :', allPlayers.length);
         if (allPlayers.length > 0) {
+            populateTrainingSelect();
             showToast(`${allPlayers.length} joueurs chargés !`, 'success');
             btnGenerateGroups.disabled = false;
-        } else {
-            showToast('Aucun joueur trouvé dans la feuille.', 'error');
         }
     } catch (err) {
-        console.error(err);
         showToast('Erreur réseau : ' + err.message, 'error');
     }
 }
 
-// ============================================================
-// JSON PARSER
-// ============================================================
 function parseSheetsJSON(values) {
-    console.log('parseSheetsJSON input:', values ? `${values.length} lignes` : 'null/undefined');
     if (!values || !Array.isArray(values) || values.length < 5) return [];
-
-    // Find the header row (row with "Nom"), skip metadata rows
     let headerRowIndex = -1;
     for (let i = 0; i < values.length; i++) {
-        if (values[i].length >= 5 && values[i][1] === 'Nom') {
-            headerRowIndex = i;
-            break;
-        }
+        if (values[i][1] === 'Nom') { headerRowIndex = i; break; }
     }
-
     if (headerRowIndex === -1) return [];
 
-    // Extract dates from header row (columns 5+)
     const dates = [];
     for (let c = 5; c < values[headerRowIndex].length; c++) {
         const cell = values[headerRowIndex][c];
-        if (cell && !cell.includes('Bilan') && cell.trim() !== '') {
+        if (cell && !cell.includes('Bilan') && /^\d{2}\/\d{2}/.test(cell.trim())) {
             dates.push(cell.trim());
         }
     }
 
-    // Parse player rows
     const players = [];
     for (let r = headerRowIndex + 1; r < values.length; r++) {
         const row = values[r];
-        if (!row || row.length < 5) continue;
-
-        const nom = row[1]?.trim() || '';
-        const prenom = row[2]?.trim() || '';
-        const annee = row[3]?.trim() || '';
+        if (!row || row.length < 5 || !row[1]?.trim()) continue;
         const niveau = row[4]?.trim() || '';
-
-        if (!nom) continue;
-
-        // Check presence for each date column
-        const presences = {};
-        for (let c = 0; c < dates.length; c++) {
-            const val = row[5 + c];
-            presences[dates[c]] = parsePresenceVal(val);
-        }
-
-        // Count statuses
-        let presentCount = 0;
-        let absentCount = 0;
-        let totalChecked = 0;
-
-        for (const [date, status] of Object.entries(presences)) {
-            if (status === 'P') {
-                presentCount++;
-                totalChecked++;
-            } else if (status === 'A' || status === 'B') {
-                absentCount++;
-                totalChecked++;
-            }
-        }
+        if (!niveau || !['A', 'B+', 'B', 'B-', 'C'].includes(niveau)) continue;
 
         players.push({
-            nom,
-            prenom,
-            fullName: `${prenom} ${nom}`,
-            annee: annee ? parseInt(annee) : null,
-            niveau: niveau,
-            niveauNum: parseNiveau(niveau),
-            presences,
-            presentCount,
-            absentCount,
-            totalChecked,
-            presenceRate: totalChecked > 0 ? presentCount / totalChecked : 0
+            nom: row[1].trim(),
+            prenom: row[2]?.trim() || '',
+            niveau,
+            niveauNum: {'A':3,'B+':2.5,'B':2,'B-':1.5,'C':1}[niveau],
+            presences: {}
         });
-    }
 
+        for (let c = 0; c < dates.length; c++) {
+            const val = row[5 + c];
+            players[players.length - 1].presences[dates[c]] = val?.trim().toUpperCase().startsWith('P') ? 'P' : (val?.trim().toUpperCase() === 'A' ? 'A' : '?');
+        }
+    }
     return players;
 }
 
-function parseNiveau(niveau) {
-    if (!niveau) return 0;
-    const map = { 'A': 3, 'B+': 2.5, 'B': 2, 'B-': 1.5, 'C+': 1.25, 'C': 1 };
-    return map[niveau] || 0;
+function getTrainingNum() {
+    const m = trainingSelect.value.match(/(\d+)\/(\d+)/);
+    return m ? parseInt(m[1]) : 0;
 }
 
-function parsePresenceVal(val) {
-    if (!val) return '?';
-    val = val.trim().toUpperCase();
-    if (val.startsWith('P')) return 'P';
-    if (val === 'A') return 'A';
-    return '?';
-}
-
-// ============================================================
-// GROUP GENERATION
-// ============================================================
-btnGenerateGroups.addEventListener('click', () => {
-    if (allPlayers.length === 0) {
-        showToast('Aucun joueur chargé.', 'info');
-        return;
+function populateTrainingSelect() {
+    trainingSelect.innerHTML = '<option value="">-- Sélectionner un entraînement --</option>';
+    for (const date of trainingDates) {
+        const opt = document.createElement('option');
+        opt.value = date;
+        opt.textContent = date;
+        trainingSelect.appendChild(opt);
     }
-
-    const numGroups = parseInt(groupCountInput.value) || 4;
-    const precision = parseInt(levelPrecisionSelect.value);
-    const respectBalance = respectBalanceCheckbox.checked;
-
-    generatedGroups = generateGroups(allPlayers, numGroups, precision, respectBalance);
-    renderGroups();
-});
-
-function generateGroups(players, numGroups, precision, respectBalance) {
-    if (players.length === 0) return [];
-
-    const groupSize = Math.ceil(players.length / numGroups);
-
-    // Sort by niveau desc, then by presence rate desc for better mixing
-    const sorted = [...players].sort((a, b) => {
-        const cmp = b.niveauNum - a.niveauNum;
-        return cmp !== 0 ? cmp : b.presenceRate - a.presenceRate;
-    });
-
-    // Alternate distribution: best in even groups, worst in odd groups (snake draft)
-    const groups = Array.from({ length: numGroups }, () => []);
-
-    for (let i = 0; i < sorted.length; i++) {
-        // Pick which group to add to based on snake order
-        const posInRound = i % numGroups;
-        let targetGroup = posInRound;
-        if (Math.floor(i / numGroups) % 2 === 1) {
-            targetGroup = numGroups - 1 - posInRound;
-        }
-
-        // Apply balance consideration - if respecting balance, prefer groups with fewer presences
-        if (respectBalance) {
-            let bestGroup = targetGroup;
-            let bestBalanceScore = Infinity;
-            for (let g = 0; g < numGroups; g++) {
-                const rateDiff = Math.abs(sorted[i].presenceRate - getAvgPresence(groups[g]) * 100);
-                const sizeDiff = Math.abs(groups[g].length - groupSize);
-                const score = rateDiff * 0.7 + sizeDiff * 30;
-                if (score < bestBalanceScore) {
-                    bestBalanceScore = score;
-                    bestGroup = g;
-                }
-            }
-            targetGroup = bestGroup;
-        }
-
-        groups[targetGroup].push(sorted[i]);
-    }
-
-    return groups;
 }
 
-function getAvgPresence(group) {
-    if (group.length === 0) return 0;
-    return group.reduce((sum, p) => sum + p.presenceRate, 0) / group.length;
-}
+groupCountInput.addEventListener('change', buildTargetLevelSelects);
+trainingSelect.addEventListener('change', () => { btnGenerateGroups.disabled = false; });
 
-function getAvgNiveau(group) {
-    if (group.length === 0) return 0;
-    return group.reduce((sum, p) => sum + p.niveauNum, 0) / group.length;
-}
+buildTargetLevelSelects();
 
-// ============================================================
-// RENDER
-// ============================================================
-function renderGroups() {
-    generatedGroups.forEach((group, i) => {
-        const avgNiv = getAvgNiveau(group);
-        const avgPres = getAvgPresence(group);
-
-        const statsPanel = document.createElement('div');
-        statsPanel.style.cssText = 'background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-md); padding: 1rem; text-align: center; flex: 1;';
-        statsPanel.innerHTML = `
-            <div style="font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 700; color: var(--primary); margin-bottom: 0.25rem;">Groupe ${i + 1}</div>
-            <div style="font-size: 0.8rem; color: var(--text-secondary);">${group.length} joueurs · Niveau moyen : ${avgNiv.toFixed(1)} · Présence moy. : ${avgPres.toFixed(0)}%</div>
-        `;
-        groupsStats.appendChild(statsPanel);
-
-        // Render group player list
-        const groupDiv = document.createElement('div');
-        groupDiv.style.cssText = 'background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-md); padding: 1rem;';
-        groupDiv.innerHTML = `<h4 style="margin-bottom: 0.5rem; font-size: 1rem; color: var(--primary);">Groupe ${i + 1}</h4>`;
-
-        const playerList = document.createElement('div');
-        playerList.style.gap = '0.25rem';
-        playerList.style.cssText = 'display: flex; flex-direction: column;';
-        groupDiv.appendChild(playerList);
-
-        group.forEach(p => {
-            const badge = getStatusBadge(p.presenceRate);
-            const row = document.createElement('div');
-            row.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 0.35rem 0.5rem; border-radius: var(--radius-sm); font-size: 0.85rem;';
-            row.style.background = p.presenceRate > 0.5 ? 'rgba(6,78,59,0.3)' : (p.presenceRate > 0 ? 'rgba(120,53,15,0.3)' : 'rgba(127,29,29,0.3)');
-            row.innerHTML = `
-                <span>${p.nom} ${p.prenom} <span style="color: var(--text-muted); font-size: 0.75rem;">(${p.niveau})</span></span>
-                <span>${badge}</span>
-            `;
-            playerList.appendChild(row);
+function buildTargetLevelSelects() {
+    const num = Math.max(2, Math.min(10, parseInt(groupCountInput.value) || 3));
+    targetLevelsContainer.innerHTML = '';
+    for (let i = 0; i < num; i++) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display: flex; align-items: center; gap: 0.5rem;';
+        row.innerHTML = `<span style="color: var(--text-muted); font-size: 0.85rem; width: 70px;">Groupe ${i+1}</span>`;
+        const sel = document.createElement('select');
+        sel.className = 'targetLevelSelect';
+        sel.style.cssText = 'flex: 1; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-sm); padding: 0.4rem 0.5rem; color: var(--text-primary); font-size: 0.9rem; outline: none;';
+        ['A', 'B', 'C'].forEach(lvl => {
+            const opt = document.createElement('option');
+            opt.value = lvl;
+            opt.textContent = lvl;
+            sel.appendChild(opt);
         });
+        sel.value = 'C';
+        row.appendChild(sel);
+        targetLevelsContainer.appendChild(row);
+    }
+}
 
-        groupsOutput.appendChild(groupDiv);
+function generateGroups() {
+    const selectedTraining = trainingSelect.value;
+    if (!selectedTraining) { showToast('Sélectionne un entraînement.', 'info'); return; }
+
+    const numGroups = Math.max(2, Math.min(10, parseInt(groupCountInput.value) || 3));
+    const targetLevels = Array.from(document.querySelectorAll('.targetLevelSelect')).map(s => s.value);
+    while (targetLevels.length < numGroups) targetLevels.push('C');
+
+    const presentPlayers = allPlayers.filter(p => p.presences[selectedTraining] === 'P');
+    if (presentPlayers.length < numGroups) { showToast('Pas assez de joueurs présents.', 'error'); return; }
+
+    // Sort players by level num desc
+    presentPlayers.sort((a, b) => b.niveauNum - a.niveauNum);
+
+    const targetNum = {'A':3,'B':2,'C':1};
+    const groups = targetLevels.map(t => ({
+        target: t,
+        targetNum: targetNum[t],
+        players: []
+    }));
+
+    const groupSizes = presentPlayers.length % numGroups;
+    const baseSize = Math.floor(presentPlayers.length / numGroups);
+
+    // Assign each player to the best matching group considering size constraints
+    let sizes = groups.map((_, i) => i < groupSizes ? baseSize + 1 : baseSize);
+    let assigned = new Set();
+
+    for (const player of presentPlayers) {
+        let bestGroup = -1;
+        let bestScore = Infinity;
+
+        for (let g = 0; g < numGroups; g++) {
+            if (assigned.size >= presentPlayers.length - (sizes[g] - groups[g].players.length)) continue;
+
+            const sizeDiff = sizes[g] - groups[g].players.length;
+            if (sizeDiff <= 0) continue;
+
+            const levelDiff = Math.abs(player.niveauNum - groups[g].targetNum);
+            const score = levelDiff * 10 + (6 - groups[g].players.length) * 0.01;
+
+            if (score < bestScore) {
+                bestScore = score;
+                bestGroup = g;
+            }
+        }
+
+        if (bestGroup === -1) {
+            // fallback: pick least filled group
+            let minSize = Infinity;
+            for (let g = 0; g < numGroups; g++) {
+                if (groups[g].players.length < minSize) { minSize = groups[g].players.length; bestGroup = g; }
+            }
+        }
+
+        groups[bestGroup].players.push({
+            nom: player.nom,
+            prenom: player.prenom,
+            niveau: player.niveau
+        });
+    }
+
+    // Sort each group alphabetically
+    groups.forEach(g => g.players.sort((a, b) => a.nom.localeCompare(b.nom)));
+
+    generatedGroups = groups;
+    renderGroups();
+}
+
+function renderGroups() {
+    groupsOutput.innerHTML = '';
+    generatedGroups.forEach((group, i) => {
+        const div = document.createElement('div');
+        div.style.cssText = 'background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-md); padding: 1rem;';
+        let html = `<h4 style="margin-bottom: 0.5rem; font-size: 1rem; color: var(--primary);">Groupe ${i+1} (niveau ${group.target}) — ${group.players.length} joueurs</h4>`;
+        html += '<div style="display: flex; flex-direction: column; gap: 0.25rem;">';
+        group.players.forEach(p => {
+            html += `<div style="padding: 0.25rem 0.5rem; font-size: 0.85rem;">${p.nom} ${p.prenom} <span style="color: var(--text-muted); font-size: 0.75rem;">(${p.niveau})</span></div>`;
+        });
+        html += '</div>';
+        div.innerHTML = html;
+        groupsOutput.appendChild(div);
     });
-
     btnCopyGroups.disabled = false;
 }
 
-function getStatusBadge(rate) {
-    if (rate > 0.66) return '✅';
-    if (rate > 0) return '⚠️';
-    return '❌';
-}
+btnGenerateGroups.addEventListener('click', generateGroups);
 
-// ============================================================
 // COPY
-// ============================================================
 btnCopyGroups.addEventListener('click', () => {
-    let text = '=== GROUPES ===\n\n';
-    generatedGroups.forEach((group, i) => {
-        text += `GROUPE ${i + 1} (${group.length} joueurs, niveau moy. ${getAvgNiveau(group).toFixed(1)})\n`;
-        group.forEach(p => {
-            text += `  ${p.nom} ${p.prenom} (${p.niveau})\n`;
-        });
+    let text = '';
+    generatedGroups.forEach((g, i) => {
+        text += `GROUPE ${i+1} (niveau ${g.target})\n${g.players.length} joueurs\n`;
+        g.players.forEach(p => { text += `${p.nom} ${p.prenom} (${p.niveau})\n`; });
         text += '\n';
     });
-
-    navigator.clipboard.writeText(text).then(() => {
-        showToast('Groupes copiés !', 'success');
-    }).catch(() => {
-        showToast('Erreur lors de la copie.', 'error');
-    });
+    navigator.clipboard.writeText(text).then(() => showToast('Groupes copiés !', 'success'));
 });
 
-// ============================================================
-// TOAST (simple inline)
-// ============================================================
+// RESET
+btnReset.addEventListener('click', () => {
+    generatedGroups = [];
+    groupsOutput.innerHTML = '';
+    btnCopyGroups.disabled = true;
+    trainingSelect.selectedIndex = 0;
+    groupCountInput.value = 3;
+    buildTargetLevelSelects();
+    showToast('Réinitialisé.', 'info');
+});
+
 function showToast(message, type) {
-    // Re-use existing toast from main JS if available
     const toastMsg = document.getElementById('toastMessage');
     if (toastMsg) {
         toastMsg.innerText = message;
