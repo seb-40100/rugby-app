@@ -75,9 +75,9 @@ function parseSheetsJSON(values) {
 
     const dates = [];
     for (let c = 5; c < values[headerRowIndex].length; c++) {
-        const cell = values[headerRowIndex][c];
-        if (cell && !cell.includes('Bilan') && /^\d{2}\/\d{2}/.test(cell.trim())) {
-            dates.push(cell.trim());
+        const cell = values[headerRowIndex][c]?.trim();
+        if (cell && !cell.includes('Bilan') && cell.length > 0 && !/^\d+$/.test(cell)) {
+            dates.push(cell);
         }
     }
 
