@@ -110,7 +110,7 @@ function parseSheetsJSON(values) {
 }
 
 function populateTrainingSelect() {
-    trainingSelect.innerHTML = '<option value="">-- Selecionner un entra\'nement --</option>';
+    trainingSelect.innerHTML = '<option value="">-- Selectionner un entrainement --</option>';
     for (const date of trainingDates) {
         const opt = document.createElement('option');
         opt.value = date;
@@ -223,7 +223,7 @@ function renderGroups() {
     generatedGroups.forEach((group, i) => {
         const div = document.createElement('div');
         div.style.cssText = 'background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-md); padding: 1rem;';
-        let html = `<h4 style="margin-bottom: 0.5rem; font-size: 1rem; color: var(--primary);">Groupe ${i+1} (niveau ${group.target}) - ${group.players.length} joueurs</h4>`;
+        let html = `<h4 style="margin-bottom: 0.5rem; font-size: 1rem; color: var(--primary);">Groupe ${i+1} - ${group.players.length} joueurs</h4>`;
         html += '<div style="display: flex; flex-direction: column; gap: 0.25rem;">';
         group.players.forEach(p => {
             html += `<div style="padding: 0.25rem 0.5rem; font-size: 0.85rem;">${p.nom} ${p.prenom}${showNiveaux ? ` <span style="color: var(--text-muted); font-size: 0.75rem;">(${p.niveau})</span>` : ''}</div>`;
