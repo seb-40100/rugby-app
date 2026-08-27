@@ -11,6 +11,7 @@ const btnGenerateGroups = document.getElementById('btnGenerateGroups');
 const btnCopyGroups = document.getElementById('btnCopyGroups');
 const btnReset = document.getElementById('btnReset');
 const groupsOutput = document.getElementById('groupsOutput');
+const showNiveauCheck = document.getElementById('showNiveauCheck');
 
 let tokenClient;
 let accessToken = null;
@@ -26,7 +27,7 @@ function waitForGoogle() {
         callback: async (response) => {
             if (response.error) { console.error(response); return; }
             accessToken = response.access_token;
-            showToast('Connexion réussie, chargement...', 'info');
+            showToast('Connexion r\'ussie, chargement...', 'info');
             await loadSheetsData();
         }
     });
@@ -41,7 +42,7 @@ if (btnConnectSheets) {
 }
 
 async function loadSheetsData() {
-    const range = encodeURIComponent(`'${SHEET_NAME}'!A:ZZ`);
+    const range = encodeURIComponent('\'presences\'!A:ZZ');
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}`;
     try {
         const response = await fetch(url, {
@@ -58,12 +59,11 @@ async function loadSheetsData() {
         console.log('players:', allPlayers.length, 'dates:', trainingDates);
         if (allPlayers.length > 0) {
             populateTrainingSelect();
-            console.log('select options:', trainingSelect.options.length);
-            showToast(`${allPlayers.length} joueurs chargés !`, 'success');
+            showToast(`${allPlayers.length} joueurs charg\'es !`, 'success');
             btnGenerateGroups.disabled = false;
         }
     } catch (err) {
-        showToast('Erreur réseau : ' + err.message, 'error');
+        showToast('Erreur r\'eseau : ' + err.message, 'error');
     }
 }
 
@@ -109,13 +109,8 @@ function parseSheetsJSON(values) {
     return players;
 }
 
-function getTrainingNum() {
-    const m = trainingSelect.value.match(/(\d+)\/(\d+)/);
-    return m ? parseInt(m[1]) : 0;
-}
-
 function populateTrainingSelect() {
-    trainingSelect.innerHTML = '<option value="">-- Sélectionner un entraînement --</option>';
+    trainingSelect.innerHTML = '<option value="">-- Selecionner un entra\'nement --</option>';
     for (const date of trainingDates) {
         const opt = document.createElement('option');
         opt.value = date;
@@ -126,7 +121,6 @@ function populateTrainingSelect() {
 
 groupCountInput.addEventListener('change', buildTargetLevelSelects);
 trainingSelect.addEventListener('change', () => { btnGenerateGroups.disabled = false; });
-
 buildTargetLevelSelects();
 
 function buildTargetLevelSelects() {
@@ -153,67 +147,70 @@ function buildTargetLevelSelects() {
 
 function generateGroups() {
     const selectedTraining = trainingSelect.value;
-    if (!selectedTraining) { showToast('Sélectionne un entraînement.', 'info'); return; }
+    if (!selectedTraining) { showToast('Selecionne un entra\'nement.', 'info'); return; }
 
     const numGroups = Math.max(2, Math.min(10, parseInt(groupCountInput.value) || 3));
     const targetLevels = Array.from(document.querySelectorAll('.targetLevelSelect')).map(s => s.value);
     while (targetLevels.length < numGroups) targetLevels.push('C');
 
     const presentPlayers = allPlayers.filter(p => p.presences[selectedTraining] === 'P');
-    if (presentPlayers.length < numGroups) { showToast('Pas assez de joueurs présents.', 'error'); return; }
+    if (presentPlayers.length < numGroups) { showToast('Pas assez de joueurs pr\'esents.', 'error'); return; }
 
-    // Sort players by level num desc
     presentPlayers.sort((a, b) => b.niveauNum - a.niveauNum);
 
     const targetNum = {'A':3,'B':2,'C':1};
     const groups = targetLevels.map(t => ({
-        target: t,
-        targetNum: targetNum[t],
-        players: []
+        target: t, targetNum: targetNum[t], players: []
     }));
 
     const groupSizes = presentPlayers.length % numGroups;
     const baseSize = Math.floor(presentPlayers.length / numGroups);
-
-    // Assign each player to the best matching group considering size constraints
     let sizes = groups.map((_, i) => i < groupSizes ? baseSize + 1 : baseSize);
-    let assigned = new Set();
 
-    for (const player of presentPlayers) {
+    // Find shared target levels across groups
+    const levelCounts = {};
+    targetLevels.forEach(t => levelCounts[t] = (levelCounts[t] || 0) + 1);
+    const sharedLevels = Object.entries(levelCounts).filter(([,c]) => c > 1).map(([l]) => l);
+
+    // First pass: assign exact-level players to shared groups, spread evenly
+    for (const level of sharedLevels) {
+        const matchingPlayers = presentPlayers.filter(p => p.niveau === level);
+        const matchingGroupIndices = targetLevels.map((t, i) => t === level ? i : -1).filter(i => i !== -1);
+        matchingPlayers.forEach((p, i) => {
+            const groupIndex = matchingGroupIndices[i % matchingGroupIndices.length];
+            groups[groupIndex].players.push({ nom: p.nom, prenom: p.prenom, niveau: p.niveau });
+        });
+    }
+
+    // Second pass: assign remaining players based on best match
+    const assignedSet = new Set();
+    for (const g of groups) g.players.forEach(p => assignedSet.add(p.nom + p.prenom));
+    const remainingPlayers = presentPlayers.filter(p => !assignedSet.has(p.nom + p.prenom));
+
+    for (const player of remainingPlayers) {
         let bestGroup = -1;
         let bestScore = Infinity;
 
         for (let g = 0; g < numGroups; g++) {
-            if (assigned.size >= presentPlayers.length - (sizes[g] - groups[g].players.length)) continue;
-
             const sizeDiff = sizes[g] - groups[g].players.length;
             if (sizeDiff <= 0) continue;
 
             const levelDiff = Math.abs(player.niveauNum - groups[g].targetNum);
             const score = levelDiff * 10 + (6 - groups[g].players.length) * 0.01;
 
-            if (score < bestScore) {
-                bestScore = score;
-                bestGroup = g;
-            }
+            if (score < bestScore) { bestScore = score; bestGroup = g; }
         }
 
         if (bestGroup === -1) {
-            // fallback: pick least filled group
             let minSize = Infinity;
             for (let g = 0; g < numGroups; g++) {
                 if (groups[g].players.length < minSize) { minSize = groups[g].players.length; bestGroup = g; }
             }
         }
 
-        groups[bestGroup].players.push({
-            nom: player.nom,
-            prenom: player.prenom,
-            niveau: player.niveau
-        });
+        groups[bestGroup].players.push({ nom: player.nom, prenom: player.prenom, niveau: player.niveau });
     }
 
-    // Sort each group alphabetically
     groups.forEach(g => g.players.sort((a, b) => a.nom.localeCompare(b.nom)));
 
     generatedGroups = groups;
@@ -221,14 +218,15 @@ function generateGroups() {
 }
 
 function renderGroups() {
+    const showNiveaux = showNiveauCheck.checked;
     groupsOutput.innerHTML = '';
     generatedGroups.forEach((group, i) => {
         const div = document.createElement('div');
         div.style.cssText = 'background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-md); padding: 1rem;';
-        let html = `<h4 style="margin-bottom: 0.5rem; font-size: 1rem; color: var(--primary);">Groupe ${i+1} (niveau ${group.target}) — ${group.players.length} joueurs</h4>`;
+        let html = `<h4 style="margin-bottom: 0.5rem; font-size: 1rem; color: var(--primary);">Groupe ${i+1} (niveau ${group.target}) - ${group.players.length} joueurs</h4>`;
         html += '<div style="display: flex; flex-direction: column; gap: 0.25rem;">';
         group.players.forEach(p => {
-            html += `<div style="padding: 0.25rem 0.5rem; font-size: 0.85rem;">${p.nom} ${p.prenom} <span style="color: var(--text-muted); font-size: 0.75rem;">(${p.niveau})</span></div>`;
+            html += `<div style="padding: 0.25rem 0.5rem; font-size: 0.85rem;">${p.nom} ${p.prenom}${showNiveaux ? ` <span style="color: var(--text-muted); font-size: 0.75rem;">(${p.niveau})</span>` : ''}</div>`;
         });
         html += '</div>';
         div.innerHTML = html;
@@ -241,13 +239,14 @@ btnGenerateGroups.addEventListener('click', generateGroups);
 
 // COPY
 btnCopyGroups.addEventListener('click', () => {
+    const showNiveaux = showNiveauCheck.checked;
     let text = '';
     generatedGroups.forEach((g, i) => {
         text += `GROUPE ${i+1} (niveau ${g.target})\n${g.players.length} joueurs\n`;
-        g.players.forEach(p => { text += `${p.nom} ${p.prenom} (${p.niveau})\n`; });
+        g.players.forEach(p => { text += `${p.nom} ${p.prenom}${showNiveaux ? ` (${p.niveau})` : ''}\n`; });
         text += '\n';
     });
-    navigator.clipboard.writeText(text).then(() => showToast('Groupes copiés !', 'success'));
+    navigator.clipboard.writeText(text).then(() => showToast('Groupes copies !', 'success'));
 });
 
 // RESET
@@ -258,7 +257,7 @@ btnReset.addEventListener('click', () => {
     trainingSelect.selectedIndex = 0;
     groupCountInput.value = 3;
     buildTargetLevelSelects();
-    showToast('Réinitialisé.', 'info');
+    showToast('Reinitialise.', 'info');
 });
 
 function showToast(message, type) {
