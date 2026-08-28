@@ -133,7 +133,7 @@ function buildTargetLevelSelects() {
         row.innerHTML = `<span style="color: var(--text-muted); font-size: 0.85rem; width: 70px;">Groupe ${i+1}</span>`;
         const sel = document.createElement('select');
         sel.className = 'targetLevelSelect';
-        sel.style.cssText = 'flex: 1; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-sm); padding: 0.4rem 0.5rem; color: var(--text-primary); font-size: 0.9rem; outline: none;';
+        sel.style.cssText = 'flex: 1; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-sm); padding: 0.4rem 0.5rem; color: var(--text-primary); font-size: 0.85rem;';
         ['A', 'B', 'C'].forEach(lvl => {
             const opt = document.createElement('option');
             opt.value = lvl;
@@ -239,9 +239,156 @@ function renderGroups() {
 
 btnGenerateGroups.addEventListener('click', generateGroups);
 
-// PRINT
+// PRINT - Optimized popup with A4 layout in 2 columns
 btnPrintGroups.addEventListener('click', () => {
-    window.print();
+    const showNiveaux = showNiveauCheck.checked;
+    
+    // Create HTML content for print
+    let printHTML = `
+        <!DOCTYPE html>
+        <html lang="fr">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Groupes d'entrainement</title>
+            <style>
+                * {
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }
+                
+                body {
+                    font-family: 'Arial', sans-serif;
+                    background: white;
+                    color: #333;
+                    padding: 20px;
+                    line-height: 1.4;
+                }
+                
+                .print-container {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 30px;
+                    max-width: 210mm;
+                    margin: 0 auto;
+                }
+                
+                .group-card {
+                    break-inside: avoid;
+                    page-break-inside: avoid;
+                    border: 2px solid #333;
+                    padding: 15px;
+                    background: #f9f9f9;
+                    border-radius: 8px;
+                }
+                
+                .group-title {
+                    font-size: 16px;
+                    font-weight: bold;
+                    color: #1a1a1a;
+                    margin-bottom: 10px;
+                    border-bottom: 2px solid #333;
+                    padding-bottom: 8px;
+                }
+                
+                .player-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 4px;
+                }
+                
+                .player-item {
+                    font-size: 12px;
+                    padding: 4px 6px;
+                    background: white;
+                    border-radius: 3px;
+                }
+                
+                .player-name {
+                    font-weight: 500;
+                }
+                
+                .player-level {
+                    color: #666;
+                    font-size: 11px;
+                    margin-left: 4px;
+                }
+                
+                .group-count {
+                    font-size: 11px;
+                    color: #666;
+                    margin-top: 8px;
+                    padding-top: 8px;
+                    border-top: 1px solid #ddd;
+                    text-align: center;
+                    font-weight: bold;
+                }
+                
+                @media print {
+                    body {
+                        padding: 0;
+                        margin: 0;
+                    }
+                    .print-container {
+                        gap: 15px;
+                        padding: 0.5cm;
+                    }
+                    .group-card {
+                        break-inside: avoid;
+                        page-break-inside: avoid;
+                    }
+                }
+                
+                @page {
+                    size: A4;
+                    margin: 10mm;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="print-container">
+    `;
+    
+    // Add groups to HTML
+    generatedGroups.forEach((group, i) => {
+        printHTML += `
+            <div class="group-card">
+                <div class="group-title">Groupe ${i + 1}</div>
+                <div class="player-list">
+        `;
+        
+        group.players.forEach(player => {
+            printHTML += `
+                <div class="player-item">
+                    <span class="player-name">${player.nom} ${player.prenom}</span>
+                    ${showNiveaux ? `<span class="player-level">(${player.niveau})</span>` : ''}
+                </div>
+            `;
+        });
+        
+        printHTML += `
+                </div>
+                <div class="group-count">${group.players.length} joueur${group.players.length > 1 ? 's' : ''}</div>
+            </div>
+        `;
+    });
+    
+    printHTML += `
+            </div>
+        </body>
+        </html>
+    `;
+    
+    // Open popup window
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(printHTML);
+    printWindow.document.close();
+    
+    // Trigger print after a short delay to ensure content is rendered
+    setTimeout(() => {
+        printWindow.print();
+    }, 250);
 });
 
 // COPY
