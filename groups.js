@@ -157,7 +157,7 @@ function buildTargetLevelSelects() {
         sizeInput.min = '0';
         sizeInput.step = '1';
         sizeInput.className = 'targetSizeInput';
-        sizeInput.style.cssText = 'width:80px; padding:0.25rem; border-radius:4px; border:1px solid rgba(255,255,255,0.06); color: white;';
+        sizeInput.style.cssText = 'width:80px; padding:0.25rem; background: rgba(0,0,0,0.12); border-radius:4px; border:1px solid rgba(255,255,255,0.06); color: white;';
         sizeInput.placeholder = ''; // will be set by updateTargetSizesDefault
 
         row.appendChild(sel);
@@ -321,7 +321,7 @@ function renderGroups() {
     generatedGroups.forEach((group, i) => {
         const div = document.createElement('div');
         div.style.cssText = 'background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-md); padding: 1rem;';
-        let html = `<h4 style="margin-bottom: 0.5rem; font-size: 1rem; color: var(--primary);">Groupe ${i+1} - ${group.players.length} joueurs (cible ${group.capacity}) <span style="color: white; font-weight: bold; font-size: 0.9rem;">Niveau: ${group.target}</span></h4>`;
+        let html = `<h4 style="margin-bottom: 0.5rem; font-size: 1rem; color: var(--primary);">Groupe ${i+1} - ${group.players.length} joueurs</h4>`;
         html += '<div style="display: flex; flex-direction: column; gap: 0.25rem;">';
         group.players.forEach(p => {
             html += `<div style="padding: 0.25rem 0.5rem; font-size: 0.85rem;">${p.nom} ${p.prenom}${showNiveaux ? ` <span style="color: var(--text-muted); font-size: 0.75rem;">(${p.niveau})</span>` : ''}</div>`;
@@ -385,8 +385,7 @@ btnPrintGroups.addEventListener('click', () => {
             <div class="group-card">
                 <div class="group-header">
                     <div class="group-title">Groupe ${i + 1}</div>
-                    <div class="group-level">${group.target}</div>
-                    <div class="group-count">${group.players.length}</div>
+                    <div class="group-count">${group.players.length} joueurs</div>
                 </div>
                 <div class="player-list">
         `;
@@ -415,7 +414,7 @@ btnPrintGroups.addEventListener('click', () => {
     const printWindow = window.open('', '_blank');
     printWindow.document.write(printHTML);
     printWindow.document.close();
-    setTimeout(() => printWindow.print(), 250);
+    //setTimeout(() => printWindow.print(), 250);
 });
 
 // COPY
