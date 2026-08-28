@@ -14,32 +14,6 @@ const btnPrintGroups = document.getElementById('btnPrintGroups');
 const groupsOutput = document.getElementById('groupsOutput');
 const showNiveauCheck = document.getElementById('showNiveauCheck');
 
-// Players-per-group input: create if not present in HTML
-let playersPerGroupInput = document.getElementById('playersPerGroup');
-if (!playersPerGroupInput) {
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;';
-    const label = document.createElement('label');
-    label.htmlFor = 'playersPerGroup';
-    label.textContent = 'Joueurs / groupe';
-    label.style.cssText = 'color: var(--text-muted); font-size:0.85rem; width:110px;';
-    playersPerGroupInput = document.createElement('input');
-    playersPerGroupInput.type = 'number';
-    playersPerGroupInput.id = 'playersPerGroup';
-    playersPerGroupInput.min = '1';
-    playersPerGroupInput.step = '1';
-    playersPerGroupInput.placeholder = '';
-    playersPerGroupInput.style.cssText = 'width:80px; padding:0.3rem; background: rgba(0,0,0,0.12); border-radius:4px; border:1px solid rgba(255,255,255,0.06);';
-    wrapper.appendChild(label);
-    wrapper.appendChild(playersPerGroupInput);
-    // try to insert near groupCountInput if possible
-    if (groupCountInput && groupCountInput.parentNode) {
-        groupCountInput.parentNode.insertBefore(wrapper, groupCountInput.nextSibling);
-    } else if (btnGenerateGroups && btnGenerateGroups.parentNode) {
-        btnGenerateGroups.parentNode.insertBefore(wrapper, btnGenerateGroups);
-    }
-}
-
 let tokenClient;
 let accessToken = null;
 
@@ -88,8 +62,7 @@ async function loadSheetsData() {
             populateTrainingSelect();
             showToast(`${allPlayers.length} joueurs charg\'es !`, 'success');
             btnGenerateGroups.disabled = false;
-            // update default players-per-group if training already selected
-            updatePlayersPerGroupDefault();
+            updateTargetSizesDefault();
         }
     } catch (err) {
         showToast('Erreur r\'eseau : ' + err.message, 'error');
@@ -150,29 +123,68 @@ function populateTrainingSelect() {
 
 groupCountInput.addEventListener('change', () => {
     buildTargetLevelSelects();
-    updatePlayersPerGroupDefault();
+    updateTargetSizesDefault();
 });
 trainingSelect.addEventListener('change', () => {
     btnGenerateGroups.disabled = false;
-    updatePlayersPerGroupDefault();
+    updateTargetSizesDefault();
 });
 buildTargetLevelSelects();
 
-// Propose a default value for playersPerGroup based on present players and number of groups
-function updatePlayersPerGroupDefault() {
-    if (!trainingSelect || !playersPerGroupInput || !groupCountInput) return;
+// Build target level selects AND per-group size inputs
+function buildTargetLevelSelects() {
+    const num = Math.max(2, Math.min(10, parseInt(groupCountInput.value) || 3));
+    targetLevelsContainer.innerHTML = '';
+    for (let i = 0; i < num; i++) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem;';
+        row.innerHTML = `<span style="color: var(--text-muted); font-size: 0.85rem; width: 70px;">Groupe ${i+1}</span>`;
+        const sel = document.createElement('select');
+        sel.className = 'targetLevelSelect';
+        sel.style.cssText = 'flex: 1; background: rgba(0,0,0,0.12); border: 1px solid rgba(255,255,255,0.06); border-radius:4px; padding:0.35rem;';
+        ['A', 'B', 'C'].forEach(lvl => {
+            const opt = document.createElement('option');
+            opt.value = lvl;
+            opt.textContent = lvl;
+            sel.appendChild(opt);
+        });
+        sel.value = 'C';
+
+        const sizeInput = document.createElement('input');
+        sizeInput.type = 'number';
+        sizeInput.min = '0';
+        sizeInput.step = '1';
+        sizeInput.className = 'targetSizeInput';
+        sizeInput.style.cssText = 'width:80px; padding:0.25rem; border-radius:4px; border:1px solid rgba(255,255,255,0.06);';
+        sizeInput.placeholder = ''; // will be set by updateTargetSizesDefault
+
+        row.appendChild(sel);
+        row.appendChild(sizeInput);
+        targetLevelsContainer.appendChild(row);
+    }
+}
+
+// Propose defaults for each group's size input based on present players & number of groups
+function updateTargetSizesDefault() {
     const selectedTraining = trainingSelect.value;
     const numGroups = Math.max(2, Math.min(10, parseInt(groupCountInput.value) || 3));
-    if (!selectedTraining) {
-        playersPerGroupInput.placeholder = '';
-        playersPerGroupInput.value = '';
+    const sizeInputs = Array.from(document.querySelectorAll('.targetSizeInput'));
+    if (!selectedTraining || sizeInputs.length === 0) {
+        sizeInputs.forEach(inp => { inp.placeholder = ''; });
         return;
     }
     const presentPlayers = allPlayers.filter(p => p.presences[selectedTraining] === 'P');
-    const defaultVal = presentPlayers.length > 0 ? Math.ceil(presentPlayers.length / numGroups) : '';
-    playersPerGroupInput.placeholder = defaultVal ? String(defaultVal) : '';
-    // do not override user's explicit input; only set value if empty
-    if (!playersPerGroupInput.value) playersPerGroupInput.value = defaultVal;
+    const total = presentPlayers.length;
+    if (total === 0) {
+        sizeInputs.forEach(inp => { inp.placeholder = ''; inp.value = ''; });
+        return;
+    }
+    // default: ceil(total / groups)
+    const defaultVal = Math.ceil(total / numGroups);
+    sizeInputs.forEach(inp => {
+        inp.placeholder = String(defaultVal);
+        if (!inp.value) inp.value = defaultVal;
+    });
 }
 
 // UTIL: Fisher–Yates shuffle (in-place)
@@ -192,10 +204,29 @@ function generateGroups() {
     const targetLevels = Array.from(document.querySelectorAll('.targetLevelSelect')).map(s => s.value);
     while (targetLevels.length < numGroups) targetLevels.push('C');
 
-    const presentPlayers = allPlayers.filter(p => p.presences[selectedTraining] === 'P');
-    if (presentPlayers.length < numGroups) { showToast('Pas assez de joueurs pr\'esents.', 'error'); return; }
+    const sizeInputs = Array.from(document.querySelectorAll('.targetSizeInput'));
+    if (sizeInputs.length < numGroups) {
+        showToast('Erreur interne: inputs de taille manquants.', 'error');
+        return;
+    }
 
-    // Do not strictly sort deterministically — add randomness while keeping level priority.
+    const presentPlayers = allPlayers.filter(p => p.presences[selectedTraining] === 'P');
+    if (presentPlayers.length < 1) { showToast('Pas de joueurs présents.', 'error'); return; }
+
+    // Parse capacities per group from inputs
+    const sizes = sizeInputs.map((inp, i) => {
+        const v = parseInt(inp.value);
+        return isNaN(v) || v < 0 ? 0 : v;
+    });
+
+    const totalCapacity = sizes.reduce((a, b) => a + b, 0);
+    const totalPlayers = presentPlayers.length;
+    if (totalCapacity < totalPlayers) {
+        showToast(`Capacité insuffisante : capacité totale ${totalCapacity} < ${totalPlayers} joueurs présents. Augmente les tailles ou le nombre de groupes.`, 'error');
+        return;
+    }
+
+    // Prepare players: keep level priority but shuffle within same level
     const levelsOrder = ['A', 'B+', 'B', 'B-', 'C'];
     const byLevel = {};
     levelsOrder.forEach(l => byLevel[l] = []);
@@ -203,49 +234,14 @@ function generateGroups() {
         if (!byLevel[p.niveau]) byLevel[p.niveau] = [];
         byLevel[p.niveau].push(p);
     });
-    // shuffle inside each level
     levelsOrder.forEach(l => shuffleInPlace(byLevel[l]));
-
-    // Flatten with higher levels first
     const flattened = [];
-    levelsOrder.forEach(l => {
-        flattened.push(...byLevel[l]);
-    });
+    levelsOrder.forEach(l => flattened.push(...byLevel[l]));
 
     const targetNum = {'A':3,'B':2,'C':1};
-    const groups = targetLevels.map(t => ({
-        target: t, targetNum: targetNum[t], players: []
+    const groups = targetLevels.map((t, i) => ({
+        target: t, targetNum: targetNum[t], players: [], capacity: sizes[i] || 0
     }));
-
-    // Determine sizes:
-    // If playersPerGroup input provided and valid, use it as a per-group cap and allocate round-robin until all players assigned.
-    // Otherwise use original balanced computation (base + remainder).
-    const totalPlayers = flattened.length;
-    let sizes = new Array(numGroups).fill(0);
-    const userVal = parseInt(playersPerGroupInput.value);
-    const hasUserVal = !isNaN(userVal) && userVal > 0;
-
-    if (hasUserVal) {
-        const cap = userVal;
-        if (cap * numGroups < totalPlayers) {
-            showToast(`Capacité insuffisante : ${cap} x ${numGroups} < ${totalPlayers} joueurs présents. Augmente le nombre / groupe ou le nombre de groupes.`, 'error');
-            return;
-        }
-        // Round-robin allocate 1 by 1 up to cap per group to sum = totalPlayers
-        let remaining = totalPlayers;
-        let idx = 0;
-        while (remaining > 0) {
-            if (sizes[idx] < cap) {
-                sizes[idx]++;
-                remaining--;
-            }
-            idx = (idx + 1) % numGroups;
-        }
-    } else {
-        const remainder = totalPlayers % numGroups;
-        const baseSize = Math.floor(totalPlayers / numGroups);
-        sizes = groups.map((_, i) => i < remainder ? baseSize + 1 : baseSize);
-    }
 
     // Find shared target levels across groups
     const levelCounts = {};
@@ -257,9 +253,9 @@ function generateGroups() {
         const matchingPlayers = (byLevel[level] || []).slice();
         shuffleInPlace(matchingPlayers);
         const matchingGroupIndices = targetLevels.map((t, i) => t === level ? i : -1).filter(i => i !== -1);
-        matchingPlayers.forEach((p, i) => {
-            const groupIndex = matchingGroupIndices[i % matchingGroupIndices.length];
-            if (groups[groupIndex].players.length < sizes[groupIndex]) {
+        matchingPlayers.forEach((p, idx) => {
+            const groupIndex = matchingGroupIndices[idx % matchingGroupIndices.length];
+            if (groups[groupIndex].players.length < groups[groupIndex].capacity) {
                 groups[groupIndex].players.push({ nom: p.nom, prenom: p.prenom, niveau: p.niveau });
             }
         });
@@ -275,7 +271,7 @@ function generateGroups() {
         let bestScore = Infinity;
         const scores = [];
         for (let g = 0; g < numGroups; g++) {
-            const spaceLeft = sizes[g] - groups[g].players.length;
+            const spaceLeft = groups[g].capacity - groups[g].players.length;
             if (spaceLeft <= 0) {
                 scores.push({ g, score: Infinity });
                 continue;
@@ -292,9 +288,10 @@ function generateGroups() {
 
         let chosenGroup = -1;
         if (candidates.length === 0) {
+            // fallback: choose any group with space (smallest current size)
             let minSize = Infinity;
             for (let g = 0; g < numGroups; g++) {
-                if (groups[g].players.length < minSize && groups[g].players.length < sizes[g]) {
+                if (groups[g].players.length < minSize && groups[g].players.length < groups[g].capacity) {
                     minSize = groups[g].players.length;
                     chosenGroup = g;
                 }
@@ -322,7 +319,7 @@ function renderGroups() {
     generatedGroups.forEach((group, i) => {
         const div = document.createElement('div');
         div.style.cssText = 'background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-md); padding: 1rem;';
-        let html = `<h4 style="margin-bottom: 0.5rem; font-size: 1rem; color: var(--primary);">Groupe ${i+1} - ${group.players.length} joueurs</h4>`;
+        let html = `<h4 style="margin-bottom: 0.5rem; font-size: 1rem; color: var(--primary);">Groupe ${i+1} - ${group.players.length} joueurs (cible ${group.capacity})</h4>`;
         html += '<div style="display: flex; flex-direction: column; gap: 0.25rem;">';
         group.players.forEach(p => {
             html += `<div style="padding: 0.25rem 0.5rem; font-size: 0.85rem;">${p.nom} ${p.prenom}${showNiveaux ? ` <span style="color: var(--text-muted); font-size: 0.75rem;">(${p.niveau})</span>` : ''}</div>`;
@@ -350,100 +347,19 @@ btnPrintGroups.addEventListener('click', () => {
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Groupes d'entrainement</title>
             <style>
-                * {
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                }
-                
-                body {
-                    font-family: 'Arial', sans-serif;
-                    background: white;
-                    color: #333;
-                    padding: 12px;
-                    line-height: 1.2;
-                }
-                
-                .print-container {
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    gap: 12px;
-                    max-width: 210mm;
-                    margin: 0 auto;
-                }
-                
-                .group-card {
-                    break-inside: avoid;
-                    page-break-inside: avoid;
-                    border: 1.5px solid #333;
-                    padding: 10px;
-                    background: #f9f9f9;
-                    border-radius: 4px;
-                }
-                
-                .group-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: baseline;
-                    margin-bottom: 8px;
-                    border-bottom: 1.5px solid #333;
-                    padding-bottom: 4px;
-                }
-                
-                .group-title {
-                    font-size: 14px;
-                    font-weight: bold;
-                    color: #1a1a1a;
-                }
-                
-                .group-count {
-                    font-size: 11px;
-                    color: #666;
-                    font-weight: bold;
-                }
-                
-                .player-list {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 2px;
-                }
-                
-                .player-item {
-                    font-size: 12px;
-                    padding: 2px 4px;
-                    background: white;
-                    border-radius: 2px;
-                    line-height: 1.3;
-                }
-                
-                .player-name {
-                    font-weight: 500;
-                }
-                
-                .player-level {
-                    color: #666;
-                    font-size: 11px;
-                    margin-left: 3px;
-                }
-                
-                @media print {
-                    body {
-                        padding: 8px;
-                        margin: 0;
-                    }
-                    .print-container {
-                        gap: 10px;
-                    }
-                    .group-card {
-                        break-inside: avoid;
-                        page-break-inside: avoid;
-                    }
-                }
-                
-                @page {
-                    size: A4;
-                    margin: 8mm;
-                }
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { font-family: 'Arial', sans-serif; background: white; color: #333; padding: 12px; line-height: 1.2; }
+                .print-container { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 210mm; margin: 0 auto; }
+                .group-card { break-inside: avoid; page-break-inside: avoid; border: 1.5px solid #333; padding: 10px; background: #f9f9f9; border-radius: 4px; }
+                .group-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; border-bottom: 1.5px solid #333; padding-bottom: 4px; }
+                .group-title { font-size: 14px; font-weight: bold; color: #1a1a1a; }
+                .group-count { font-size: 11px; color: #666; font-weight: bold; }
+                .player-list { display: flex; flex-direction: column; gap: 2px; }
+                .player-item { font-size: 12px; padding: 2px 4px; background: white; border-radius: 2px; line-height: 1.3; }
+                .player-name { font-weight: 500; }
+                .player-level { color: #666; font-size: 11px; margin-left: 3px; }
+                @media print { body { padding: 8px; margin: 0; } .print-container { gap: 10px; } .group-card { break-inside: avoid; page-break-inside: avoid; } }
+                @page { size: A4; margin: 8mm; }
             </style>
         </head>
         <body>
@@ -482,15 +398,10 @@ btnPrintGroups.addEventListener('click', () => {
         </html>
     `;
     
-    // Open popup window
     const printWindow = window.open('', '_blank');
     printWindow.document.write(printHTML);
     printWindow.document.close();
-    
-    // Trigger print after a short delay to ensure content is rendered
-    setTimeout(() => {
-        printWindow.print();
-    }, 250);
+    setTimeout(() => printWindow.print(), 250);
 });
 
 // COPY
@@ -498,7 +409,7 @@ btnCopyGroups.addEventListener('click', () => {
     const showNiveaux = showNiveauCheck.checked;
     let text = '';
     generatedGroups.forEach((g, i) => {
-        text += `GROUPE ${i+1} (niveau ${g.target})\n${g.players.length} joueurs\n`;
+        text += `GROUPE ${i+1} (niveau ${g.target}) - cible ${g.capacity}\n${g.players.length} joueurs\n`;
         g.players.forEach(p => { text += `${p.nom} ${p.prenom}${showNiveaux ? ` (${p.niveau})` : ''}\n`; });
         text += '\n';
     });
@@ -513,8 +424,8 @@ btnReset.addEventListener('click', () => {
     btnPrintGroups.disabled = true;
     trainingSelect.selectedIndex = 0;
     groupCountInput.value = 3;
-    if (playersPerGroupInput) playersPerGroupInput.value = '';
     buildTargetLevelSelects();
+    updateTargetSizesDefault();
     showToast('Reinitialise.', 'info');
 });
 
