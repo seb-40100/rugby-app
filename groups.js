@@ -12,69 +12,10 @@ const btnCopyGroups = document.getElementById('btnCopyGroups');
 const btnReset = document.getElementById('btnReset');
 const btnPrintGroups = document.getElementById('btnPrintGroups');
 const groupsOutput = document.getElementById('groupsOutput');
+const showNiveauCheck = document.getElementById('showNiveauCheck');
 
-// --- Remplacement de la case "showNiveauCheck" par un bouton dynamique ---
-let showLevels = true; // état courant : afficher les niveaux individuels
-const existingShowElem = document.getElementById('showNiveauCheck'); // pouvait être checkbox
-let btnToggleLevels = document.getElementById('btnToggleLevels');
-
-function createToggleLevelsButton(initialState) {
-    const btn = document.createElement('button');
-    btn.id = 'btnToggleLevels';
-    btn.type = 'button';
-    btn.textContent = initialState ? 'Masquer les niveaux' : 'Afficher les niveaux';
-    btn.title = 'Afficher ou masquer les niveaux individuels';
-    btn.style.cssText = 'margin-left:0.5rem; padding:0.4rem 0.6rem; cursor:pointer;';
-    btn.addEventListener('click', () => {
-        showLevels = !showLevels;
-        btn.textContent = showLevels ? 'Masquer les niveaux' : 'Afficher les niveaux';
-        updateDisplayedLevels();
-    });
-    return btn;
-}
-
-// create or replace
-if (!btnToggleLevels) {
-    btnToggleLevels = createToggleLevelsButton(showLevels);
-    if (existingShowElem) {
-        // if existing element is checkbox, capture its checked state then replace
-        if (existingShowElem.tagName.toLowerCase() === 'input' && existingShowElem.type === 'checkbox') {
-            showLevels = !!existingShowElem.checked;
-            btnToggleLevels = createToggleLevelsButton(showLevels);
-            existingShowElem.parentNode.replaceChild(btnToggleLevels, existingShowElem);
-        } else {
-            // not a checkbox: hide it and insert button after generate button (fallback)
-            existingShowElem.style.display = 'none';
-            if (btnGenerateGroups && btnGenerateGroups.parentNode) {
-                btnGenerateGroups.parentNode.insertBefore(btnToggleLevels, btnGenerateGroups.nextSibling);
-            }
-        }
-    } else {
-        // no existing element: insert next to generate button if possible
-        if (btnGenerateGroups && btnGenerateGroups.parentNode) {
-            btnGenerateGroups.parentNode.insertBefore(btnToggleLevels, btnGenerateGroups.nextSibling);
-        }
-    }
-}
-
-// utility to update displayed levels immediately
-function updateDisplayedLevels() {
-    if (!groupsOutput) return;
-    const spans = groupsOutput.querySelectorAll('.player-level');
-    spans.forEach(s => { s.style.display = showLevels ? '' : 'none'; });
-}
-
-// --- Fin du remplacement du contrôle d'affichage des niveaux ---
-
-// Players-per-group inputs (par-groupe) setup (as before)
 let tokenClient;
 let accessToken = null;
-
-// If a playersPerGroup input exists elsewhere, we still keep per-group fields (the code uses per-group inputs)
-let playersPerGroupInput = document.getElementById('playersPerGroup'); // kept for backward compatibility (but per-group size inputs are primary)
-if (!playersPerGroupInput) {
-    // nothing to do — per-group size inputs are created in buildTargetLevelSelects
-}
 
 function waitForGoogle() {
     if (!window.google || !google.accounts || !google.accounts.oauth2) {
@@ -200,8 +141,7 @@ function buildTargetLevelSelects() {
         row.innerHTML = `<span style="color: var(--text-muted); font-size: 0.85rem; width: 70px;">Groupe ${i+1}</span>`;
         const sel = document.createElement('select');
         sel.className = 'targetLevelSelect';
-        // Fixed style: ensure selected value text is visible (color explicit)
-        sel.style.cssText = 'flex: 1; background: transparent; color: var(--text-primary, #111); border: 1px solid rgba(255,255,255,0.06); border-radius:4px; padding:0.35rem;';
+        sel.style.cssText = 'flex: 1; background: rgba(0,0,0,0.12); border: 1px solid rgba(255,255,255,0.06); border-radius:4px; padding:0.35rem;';
         ['A', 'B', 'C'].forEach(lvl => {
             const opt = document.createElement('option');
             opt.value = lvl;
@@ -374,8 +314,7 @@ function generateGroups() {
 }
 
 function renderGroups() {
-    // use showLevels state (button) rather than checkbox
-    const showNiveaux = !!showLevels;
+    const showNiveaux = showNiveauCheck.checked;
     groupsOutput.innerHTML = '';
     generatedGroups.forEach((group, i) => {
         const div = document.createElement('div');
@@ -383,7 +322,7 @@ function renderGroups() {
         let html = `<h4 style="margin-bottom: 0.5rem; font-size: 1rem; color: var(--primary);">Groupe ${i+1} - ${group.players.length} joueurs (cible ${group.capacity})</h4>`;
         html += '<div style="display: flex; flex-direction: column; gap: 0.25rem;">';
         group.players.forEach(p => {
-            html += `<div style="padding: 0.25rem 0.5rem; font-size: 0.85rem;"><span class="player-name">${p.nom} ${p.prenom}</span>${showNiveaux ? ` <span class="player-level">(${p.niveau})</span>` : ` <span class="player-level" style="display:none">(${p.niveau})</span>`}</div>`;
+            html += `<div style="padding: 0.25rem 0.5rem; font-size: 0.85rem;">${p.nom} ${p.prenom}${showNiveaux ? ` <span style="color: var(--text-muted); font-size: 0.75rem;">(${p.niveau})</span>` : ''}</div>`;
         });
         html += '</div>';
         div.innerHTML = html;
@@ -391,16 +330,13 @@ function renderGroups() {
     });
     btnCopyGroups.disabled = false;
     btnPrintGroups.disabled = false;
-    // ensure displayed levels reflect current state
-    updateDisplayedLevels();
 }
 
-// PRINT uses showLevels state
 btnGenerateGroups.addEventListener('click', generateGroups);
 
 // PRINT - Optimized popup with A4 layout in 2 columns (compact for single page)
 btnPrintGroups.addEventListener('click', () => {
-    const showNiveaux = !!showLevels;
+    const showNiveaux = showNiveauCheck.checked;
     
     // Create HTML content for print
     let printHTML = `
@@ -468,9 +404,9 @@ btnPrintGroups.addEventListener('click', () => {
     setTimeout(() => printWindow.print(), 250);
 });
 
-// COPY uses showLevels state
+// COPY
 btnCopyGroups.addEventListener('click', () => {
-    const showNiveaux = !!showLevels;
+    const showNiveaux = showNiveauCheck.checked;
     let text = '';
     generatedGroups.forEach((g, i) => {
         text += `GROUPE ${i+1} (niveau ${g.target}) - cible ${g.capacity}\n${g.players.length} joueurs\n`;
