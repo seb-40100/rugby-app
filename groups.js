@@ -239,7 +239,7 @@ function renderGroups() {
 
 btnGenerateGroups.addEventListener('click', generateGroups);
 
-// PRINT - Optimized popup with A4 layout in 2 columns
+// PRINT - Optimized popup with A4 layout in 2 columns (compact for single page)
 btnPrintGroups.addEventListener('click', () => {
     const showNiveaux = showNiveauCheck.checked;
     
@@ -262,14 +262,14 @@ btnPrintGroups.addEventListener('click', () => {
                     font-family: 'Arial', sans-serif;
                     background: white;
                     color: #333;
-                    padding: 20px;
-                    line-height: 1.4;
+                    padding: 12px;
+                    line-height: 1.2;
                 }
                 
                 .print-container {
                     display: grid;
                     grid-template-columns: 1fr 1fr;
-                    gap: 30px;
+                    gap: 12px;
                     max-width: 210mm;
                     margin: 0 auto;
                 }
@@ -277,32 +277,45 @@ btnPrintGroups.addEventListener('click', () => {
                 .group-card {
                     break-inside: avoid;
                     page-break-inside: avoid;
-                    border: 2px solid #333;
-                    padding: 15px;
+                    border: 1.5px solid #333;
+                    padding: 10px;
                     background: #f9f9f9;
-                    border-radius: 8px;
+                    border-radius: 4px;
+                }
+                
+                .group-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: baseline;
+                    margin-bottom: 8px;
+                    border-bottom: 1.5px solid #333;
+                    padding-bottom: 4px;
                 }
                 
                 .group-title {
-                    font-size: 16px;
+                    font-size: 14px;
                     font-weight: bold;
                     color: #1a1a1a;
-                    margin-bottom: 10px;
-                    border-bottom: 2px solid #333;
-                    padding-bottom: 8px;
+                }
+                
+                .group-count {
+                    font-size: 11px;
+                    color: #666;
+                    font-weight: bold;
                 }
                 
                 .player-list {
                     display: flex;
                     flex-direction: column;
-                    gap: 4px;
+                    gap: 2px;
                 }
                 
                 .player-item {
                     font-size: 12px;
-                    padding: 4px 6px;
+                    padding: 2px 4px;
                     background: white;
-                    border-radius: 3px;
+                    border-radius: 2px;
+                    line-height: 1.3;
                 }
                 
                 .player-name {
@@ -312,27 +325,16 @@ btnPrintGroups.addEventListener('click', () => {
                 .player-level {
                     color: #666;
                     font-size: 11px;
-                    margin-left: 4px;
-                }
-                
-                .group-count {
-                    font-size: 11px;
-                    color: #666;
-                    margin-top: 8px;
-                    padding-top: 8px;
-                    border-top: 1px solid #ddd;
-                    text-align: center;
-                    font-weight: bold;
+                    margin-left: 3px;
                 }
                 
                 @media print {
                     body {
-                        padding: 0;
+                        padding: 8px;
                         margin: 0;
                     }
                     .print-container {
-                        gap: 15px;
-                        padding: 0.5cm;
+                        gap: 10px;
                     }
                     .group-card {
                         break-inside: avoid;
@@ -342,7 +344,7 @@ btnPrintGroups.addEventListener('click', () => {
                 
                 @page {
                     size: A4;
-                    margin: 10mm;
+                    margin: 8mm;
                 }
             </style>
         </head>
@@ -354,7 +356,10 @@ btnPrintGroups.addEventListener('click', () => {
     generatedGroups.forEach((group, i) => {
         printHTML += `
             <div class="group-card">
-                <div class="group-title">Groupe ${i + 1}</div>
+                <div class="group-header">
+                    <div class="group-title">Groupe ${i + 1}</div>
+                    <div class="group-count">${group.players.length}</div>
+                </div>
                 <div class="player-list">
         `;
         
@@ -369,7 +374,6 @@ btnPrintGroups.addEventListener('click', () => {
         
         printHTML += `
                 </div>
-                <div class="group-count">${group.players.length} joueur${group.players.length > 1 ? 's' : ''}</div>
             </div>
         `;
     });
