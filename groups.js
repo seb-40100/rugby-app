@@ -3,6 +3,7 @@ const SHEET_NAME = 'presences';
 let allPlayers = [];
 let trainingDates = [];
 let generatedGroups = [];
+let showNiveaux = false;
 
 const trainingSelect = document.getElementById('trainingSelect');
 const groupCountInput = document.getElementById('groupCount');
@@ -11,8 +12,8 @@ const btnGenerateGroups = document.getElementById('btnGenerateGroups');
 const btnCopyGroups = document.getElementById('btnCopyGroups');
 const btnReset = document.getElementById('btnReset');
 const btnPrintGroups = document.getElementById('btnPrintGroups');
+const btnToggleLevels = document.getElementById('btnToggleLevels');
 const groupsOutput = document.getElementById('groupsOutput');
-const showNiveauCheck = document.getElementById('showNiveauCheck');
 
 let tokenClient;
 let accessToken = null;
@@ -310,11 +311,11 @@ function generateGroups() {
     groups.forEach(g => g.players.sort((a, b) => a.nom.localeCompare(b.nom)));
 
     generatedGroups = groups;
+    btnToggleLevels.disabled = false;
     renderGroups();
 }
 
 function renderGroups() {
-    const showNiveaux = showNiveauCheck.checked;
     groupsOutput.innerHTML = '';
     generatedGroups.forEach((group, i) => {
         const div = document.createElement('div');
@@ -334,9 +335,19 @@ function renderGroups() {
 
 btnGenerateGroups.addEventListener('click', generateGroups);
 
+// Toggle levels button
+btnToggleLevels.addEventListener('click', () => {
+    if (generatedGroups.length === 0) {
+        showToast('Génère d\'abord les groupes.', 'info');
+        return;
+    }
+    showNiveaux = !showNiveaux;
+    btnToggleLevels.textContent = showNiveaux ? '🙈 Masquer les niveaux' : '👁️ Afficher les niveaux';
+    renderGroups();
+});
+
 // PRINT - Optimized popup with A4 layout in 2 columns (compact for single page)
 btnPrintGroups.addEventListener('click', () => {
-    const showNiveaux = showNiveauCheck.checked;
     
     // Create HTML content for print
     let printHTML = `
@@ -406,7 +417,6 @@ btnPrintGroups.addEventListener('click', () => {
 
 // COPY
 btnCopyGroups.addEventListener('click', () => {
-    const showNiveaux = showNiveauCheck.checked;
     let text = '';
     generatedGroups.forEach((g, i) => {
         text += `GROUPE ${i+1} (niveau ${g.target}) - cible ${g.capacity}\n${g.players.length} joueurs\n`;
@@ -422,6 +432,9 @@ btnReset.addEventListener('click', () => {
     groupsOutput.innerHTML = '';
     btnCopyGroups.disabled = true;
     btnPrintGroups.disabled = true;
+    btnToggleLevels.disabled = true;
+    btnToggleLevels.textContent = '👁️ Afficher les niveaux';
+    showNiveaux = false;
     trainingSelect.selectedIndex = 0;
     groupCountInput.value = 3;
     buildTargetLevelSelects();
