@@ -649,3 +649,20 @@
             flex: 1;
         }
 
+        @media print {
+            body { background: white !important; color: black !important; }
+            header, .tabs, .panel:first-child, footer, .toast, .btn-secondary:not(#btnPrintGroups), .btn-export { display: none !important; }
+            .tab-btn, .tab-panel { display: none !important; }
+            #tab-groups { display: block !important; }
+            #tab-groups .tab-panel { display: grid !important; grid-template-columns: 1fr 1fr !important; }
+            #tab-groups .panel { background: white !important; border: 1px solid #ccc !important; box-shadow: none !important; backdrop-filter: none; }
+            #tab-groups .panel-title { border-bottom-color: #ccc; color: black; }
+            #tab-groups .panel-title svg { color: black; }
+            #groupsOutput { gap: 0.5rem !important; }
+            #groupsOutput .tab-panel { display: flex; flex-direction: column !important; gap: 0.5rem !important; }
+            body { min-height: auto; overflow: visible; }
+            .container { padding: 0.5cm; }
+            pre#groupsOutput { font-size: 9pt; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+

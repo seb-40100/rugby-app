@@ -10,6 +10,7 @@ const targetLevelsContainer = document.getElementById('targetLevels');
 const btnGenerateGroups = document.getElementById('btnGenerateGroups');
 const btnCopyGroups = document.getElementById('btnCopyGroups');
 const btnReset = document.getElementById('btnReset');
+const btnPrintGroups = document.getElementById('btnPrintGroups');
 const groupsOutput = document.getElementById('groupsOutput');
 const showNiveauCheck = document.getElementById('showNiveauCheck');
 
@@ -233,9 +234,15 @@ function renderGroups() {
         groupsOutput.appendChild(div);
     });
     btnCopyGroups.disabled = false;
+    btnPrintGroups.disabled = false;
 }
 
 btnGenerateGroups.addEventListener('click', generateGroups);
+
+// PRINT
+btnPrintGroups.addEventListener('click', () => {
+    window.print();
+});
 
 // COPY
 btnCopyGroups.addEventListener('click', () => {
