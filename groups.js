@@ -1,5 +1,3 @@
-// full updated groups.js (proposed) - ajoute de l'aléatoire en respectant les règles existantes, + bouton Regénérer
-
 const SPREADSHEET_ID = '16bfjaSFQIShF6jUNiQhh76gonKqdVlq6DRzdAOSSIQE';
 const SHEET_NAME = 'presences';
 let allPlayers = [];
@@ -16,18 +14,29 @@ const btnPrintGroups = document.getElementById('btnPrintGroups');
 const groupsOutput = document.getElementById('groupsOutput');
 const showNiveauCheck = document.getElementById('showNiveauCheck');
 
-// Regenerate button: try to find it in DOM, otherwise create it next to generate button
-let btnRegenerate = document.getElementById('btnRegenerate');
-if (!btnRegenerate) {
-    btnRegenerate = document.createElement('button');
-    btnRegenerate.id = 'btnRegenerate';
-    btnRegenerate.type = 'button';
-    btnRegenerate.textContent = 'Regénérer';
-    btnRegenerate.title = 'Regénérer la répartition aléatoire des joueurs';
-    btnRegenerate.style.cssText = 'margin-left: 0.5rem; padding: 0.4rem 0.6rem; cursor: pointer;';
-    btnRegenerate.disabled = true;
-    if (btnGenerateGroups && btnGenerateGroups.parentNode) {
-        btnGenerateGroups.parentNode.insertBefore(btnRegenerate, btnGenerateGroups.nextSibling);
+// Players-per-group input: create if not present in HTML
+let playersPerGroupInput = document.getElementById('playersPerGroup');
+if (!playersPerGroupInput) {
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display:flex; gap:0.5rem; align-items:center; margin-top:0.5rem;';
+    const label = document.createElement('label');
+    label.htmlFor = 'playersPerGroup';
+    label.textContent = 'Joueurs / groupe';
+    label.style.cssText = 'color: var(--text-muted); font-size:0.85rem; width:110px;';
+    playersPerGroupInput = document.createElement('input');
+    playersPerGroupInput.type = 'number';
+    playersPerGroupInput.id = 'playersPerGroup';
+    playersPerGroupInput.min = '1';
+    playersPerGroupInput.step = '1';
+    playersPerGroupInput.placeholder = '';
+    playersPerGroupInput.style.cssText = 'width:80px; padding:0.3rem; background: rgba(0,0,0,0.12); border-radius:4px; border:1px solid rgba(255,255,255,0.06);';
+    wrapper.appendChild(label);
+    wrapper.appendChild(playersPerGroupInput);
+    // try to insert near groupCountInput if possible
+    if (groupCountInput && groupCountInput.parentNode) {
+        groupCountInput.parentNode.insertBefore(wrapper, groupCountInput.nextSibling);
+    } else if (btnGenerateGroups && btnGenerateGroups.parentNode) {
+        btnGenerateGroups.parentNode.insertBefore(wrapper, btnGenerateGroups);
     }
 }
 
@@ -79,6 +88,8 @@ async function loadSheetsData() {
             populateTrainingSelect();
             showToast(`${allPlayers.length} joueurs charg\'es !`, 'success');
             btnGenerateGroups.disabled = false;
+            // update default players-per-group if training already selected
+            updatePlayersPerGroupDefault();
         }
     } catch (err) {
         showToast('Erreur r\'eseau : ' + err.message, 'error');
@@ -137,30 +148,31 @@ function populateTrainingSelect() {
     }
 }
 
-groupCountInput.addEventListener('change', buildTargetLevelSelects);
-trainingSelect.addEventListener('change', () => { btnGenerateGroups.disabled = false; });
+groupCountInput.addEventListener('change', () => {
+    buildTargetLevelSelects();
+    updatePlayersPerGroupDefault();
+});
+trainingSelect.addEventListener('change', () => {
+    btnGenerateGroups.disabled = false;
+    updatePlayersPerGroupDefault();
+});
 buildTargetLevelSelects();
 
-function buildTargetLevelSelects() {
-    const num = Math.max(2, Math.min(10, parseInt(groupCountInput.value) || 3));
-    targetLevelsContainer.innerHTML = '';
-    for (let i = 0; i < num; i++) {
-        const row = document.createElement('div');
-        row.style.cssText = 'display: flex; align-items: center; gap: 0.5rem;';
-        row.innerHTML = `<span style="color: var(--text-muted); font-size: 0.85rem; width: 70px;">Groupe ${i+1}</span>`;
-        const sel = document.createElement('select');
-        sel.className = 'targetLevelSelect';
-        sel.style.cssText = 'flex: 1; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-sm); padding: 0.4rem 0.5rem; color: var(--text-primary);';
-        ['A', 'B', 'C'].forEach(lvl => {
-            const opt = document.createElement('option');
-            opt.value = lvl;
-            opt.textContent = lvl;
-            sel.appendChild(opt);
-        });
-        sel.value = 'C';
-        row.appendChild(sel);
-        targetLevelsContainer.appendChild(row);
+// Propose a default value for playersPerGroup based on present players and number of groups
+function updatePlayersPerGroupDefault() {
+    if (!trainingSelect || !playersPerGroupInput || !groupCountInput) return;
+    const selectedTraining = trainingSelect.value;
+    const numGroups = Math.max(2, Math.min(10, parseInt(groupCountInput.value) || 3));
+    if (!selectedTraining) {
+        playersPerGroupInput.placeholder = '';
+        playersPerGroupInput.value = '';
+        return;
     }
+    const presentPlayers = allPlayers.filter(p => p.presences[selectedTraining] === 'P');
+    const defaultVal = presentPlayers.length > 0 ? Math.ceil(presentPlayers.length / numGroups) : '';
+    playersPerGroupInput.placeholder = defaultVal ? String(defaultVal) : '';
+    // do not override user's explicit input; only set value if empty
+    if (!playersPerGroupInput.value) playersPerGroupInput.value = defaultVal;
 }
 
 // UTIL: Fisher–Yates shuffle (in-place)
@@ -184,7 +196,6 @@ function generateGroups() {
     if (presentPlayers.length < numGroups) { showToast('Pas assez de joueurs pr\'esents.', 'error'); return; }
 
     // Do not strictly sort deterministically — add randomness while keeping level priority.
-    // We'll group by niveau, shuffle within same niveau, then flatten keeping higher niveaux first.
     const levelsOrder = ['A', 'B+', 'B', 'B-', 'C'];
     const byLevel = {};
     levelsOrder.forEach(l => byLevel[l] = []);
@@ -206,10 +217,35 @@ function generateGroups() {
         target: t, targetNum: targetNum[t], players: []
     }));
 
-    // compute balanced sizes
-    const remainder = flattened.length % numGroups;
-    const baseSize = Math.floor(flattened.length / numGroups);
-    let sizes = groups.map((_, i) => i < remainder ? baseSize + 1 : baseSize);
+    // Determine sizes:
+    // If playersPerGroup input provided and valid, use it as a per-group cap and allocate round-robin until all players assigned.
+    // Otherwise use original balanced computation (base + remainder).
+    const totalPlayers = flattened.length;
+    let sizes = new Array(numGroups).fill(0);
+    const userVal = parseInt(playersPerGroupInput.value);
+    const hasUserVal = !isNaN(userVal) && userVal > 0;
+
+    if (hasUserVal) {
+        const cap = userVal;
+        if (cap * numGroups < totalPlayers) {
+            showToast(`Capacité insuffisante : ${cap} x ${numGroups} < ${totalPlayers} joueurs présents. Augmente le nombre / groupe ou le nombre de groupes.`, 'error');
+            return;
+        }
+        // Round-robin allocate 1 by 1 up to cap per group to sum = totalPlayers
+        let remaining = totalPlayers;
+        let idx = 0;
+        while (remaining > 0) {
+            if (sizes[idx] < cap) {
+                sizes[idx]++;
+                remaining--;
+            }
+            idx = (idx + 1) % numGroups;
+        }
+    } else {
+        const remainder = totalPlayers % numGroups;
+        const baseSize = Math.floor(totalPlayers / numGroups);
+        sizes = groups.map((_, i) => i < remainder ? baseSize + 1 : baseSize);
+    }
 
     // Find shared target levels across groups
     const levelCounts = {};
@@ -218,13 +254,11 @@ function generateGroups() {
 
     // First pass: assign exact-level players to shared groups, spread evenly (round-robin) after shuffle
     for (const level of sharedLevels) {
-        // take players of this level and shuffle again for fairness
         const matchingPlayers = (byLevel[level] || []).slice();
         shuffleInPlace(matchingPlayers);
         const matchingGroupIndices = targetLevels.map((t, i) => t === level ? i : -1).filter(i => i !== -1);
         matchingPlayers.forEach((p, i) => {
             const groupIndex = matchingGroupIndices[i % matchingGroupIndices.length];
-            // only assign if group still has space
             if (groups[groupIndex].players.length < sizes[groupIndex]) {
                 groups[groupIndex].players.push({ nom: p.nom, prenom: p.prenom, niveau: p.niveau });
             }
@@ -235,7 +269,6 @@ function generateGroups() {
     const assignedSet = new Set();
     for (const g of groups) g.players.forEach(p => assignedSet.add((p.nom + '|' + p.prenom)));
     const remainingPlayers = flattened.filter(p => !assignedSet.has(p.nom + '|' + p.prenom));
-    // shuffle remaining to avoid bias in iteration order
     shuffleInPlace(remainingPlayers);
 
     for (const player of remainingPlayers) {
@@ -248,20 +281,17 @@ function generateGroups() {
                 continue;
             }
             const levelDiff = Math.abs(player.niveauNum - groups[g].targetNum);
-            // primary cost: level difference; secondary small cost: current group size to favor filling emptier groups
             const sizePenalty = (groups[g].players.length) * 0.01;
             const score = levelDiff * 10 + sizePenalty;
             scores.push({ g, score });
             if (score < bestScore) bestScore = score;
         }
 
-        // allow a small tolerance: choose randomly among groups within epsilon of bestScore
-        const EPS = 0.001; // tolerance
+        const EPS = 0.001;
         const candidates = scores.filter(s => isFinite(s.score) && s.score <= bestScore + EPS).map(s => s.g);
 
         let chosenGroup = -1;
         if (candidates.length === 0) {
-            // fallback: choose any group with space (smallest size)
             let minSize = Infinity;
             for (let g = 0; g < numGroups; g++) {
                 if (groups[g].players.length < minSize && groups[g].players.length < sizes[g]) {
@@ -273,7 +303,6 @@ function generateGroups() {
         } else if (candidates.length === 1) {
             chosenGroup = candidates[0];
         } else {
-            // pick randomly among candidates
             chosenGroup = candidates[Math.floor(Math.random() * candidates.length)];
         }
 
@@ -304,25 +333,9 @@ function renderGroups() {
     });
     btnCopyGroups.disabled = false;
     btnPrintGroups.disabled = false;
-    // enable regenerate once groups exist
-    if (btnRegenerate) btnRegenerate.disabled = !(generatedGroups && generatedGroups.length > 0);
 }
 
 btnGenerateGroups.addEventListener('click', generateGroups);
-
-// BUTTON: Regenerate - simply re-run generation with same selected training & target selects
-btnRegenerate.addEventListener('click', () => {
-    if (!generatedGroups || generatedGroups.length === 0) {
-        showToast('Aucun groupe à regénérer.', 'info');
-        return;
-    }
-    if (!trainingSelect.value) {
-        showToast('Selecionne un entra\'nement.', 'info');
-        return;
-    }
-    // Call generateGroups to regenerate with randomness; this preserves the current target level selects
-    generateGroups();
-});
 
 // PRINT - Optimized popup with A4 layout in 2 columns (compact for single page)
 btnPrintGroups.addEventListener('click', () => {
@@ -497,10 +510,10 @@ btnReset.addEventListener('click', () => {
     generatedGroups = [];
     groupsOutput.innerHTML = '';
     btnCopyGroups.disabled = true;
-    btnRegenerate.disabled = true;
     btnPrintGroups.disabled = true;
     trainingSelect.selectedIndex = 0;
     groupCountInput.value = 3;
+    if (playersPerGroupInput) playersPerGroupInput.value = '';
     buildTargetLevelSelects();
     showToast('Reinitialise.', 'info');
 });
