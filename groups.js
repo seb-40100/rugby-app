@@ -78,6 +78,7 @@ function parseSheetsJSON(values) {
     }
     if (headerRowIndex === -1) return [];
 
+    const dateIndices = [];
     const dates = [];
     console.log('headerRow:', values[headerRowIndex]);
     for (let c = 5; c < values[headerRowIndex].length; c++) {
@@ -85,9 +86,10 @@ function parseSheetsJSON(values) {
         console.log('cell', c, ':', JSON.stringify(cell));
         if (cell && !cell.includes('Bilan') && cell.length > 0 && !/^\d+$/.test(cell)) {
             dates.push(cell);
+            dateIndices.push(c);
         }
     }
-    console.log('extracted dates:', dates);
+    console.log('extracted dates:', dates, 'indices:', dateIndices);
 
     const players = [];
     for (let r = headerRowIndex + 1; r < values.length; r++) {
@@ -105,7 +107,7 @@ function parseSheetsJSON(values) {
         });
 
         for (let c = 0; c < dates.length; c++) {
-            const val = row[5 + c];
+            const val = row[dateIndices[c]];
             players[players.length - 1].presences[dates[c]] = val?.trim().toUpperCase().startsWith('P') ? 'P' : (val?.trim().toUpperCase() === 'A' ? 'A' : '?');
         }
     }
