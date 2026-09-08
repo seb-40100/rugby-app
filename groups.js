@@ -200,9 +200,61 @@ function shuffleInPlace(array) {
     return array;
 }
 
+// Rule matrix:
+// Group A: allowed ['A', 'B+', 'B'] (forbidden 'B-', 'C')
+// Group B: allowed ['B+', 'B', 'B-'] (forbidden 'A', 'C')
+// Group C: allowed ['B', 'B-', 'C'] (forbidden 'A', 'B+')
+function isLevelAllowed(playerLevel, groupTarget) {
+    if (groupTarget === 'A') return ['A', 'B+', 'B'].includes(playerLevel);
+    if (groupTarget === 'B') return ['B+', 'B', 'B-'].includes(playerLevel);
+    if (groupTarget === 'C') return ['B', 'B-', 'C'].includes(playerLevel);
+    return true;
+}
+
+function assignPlayerToBestGroup(player, groups) {
+    // 1. Filtrer les groupes autorisés selon les règles strictes de niveau
+    let allowedGroups = groups
+        .map((g, index) => ({ group: g, index }))
+        .filter(({ group }) => isLevelAllowed(player.niveau, group.target));
+
+    // Fallback si aucun groupe adapté n'existe dans la sélection globale
+    if (allowedGroups.length === 0) {
+        allowedGroups = groups.map((g, index) => ({ group: g, index }));
+    }
+
+    // 2. Chercher parmi les groupes autorisés ceux qui ont encore de la place
+    const groupsWithSpace = allowedGroups.filter(
+        ({ group }) => group.players.length < group.capacity
+    );
+
+    // Si de la place est disponible, on choisit parmi ceux-ci.
+    // Sinon, on accepte d'élargir la capacité des groupes autorisés pour respecter les niveaux.
+    const candidatePool = groupsWithSpace.length > 0 ? groupsWithSpace : allowedGroups;
+
+    // 3. Calculer un score pour départager les candidats
+    let minScore = Infinity;
+    const scored = candidatePool.map(({ group, index }) => {
+        const levelDiff = Math.abs(player.niveauNum - group.targetNum);
+        const fillMetric = group.capacity > 0 
+            ? (group.players.length / group.capacity) 
+            : group.players.length;
+        // Priorité 1 : écart de niveau minimal (poids 100)
+        // Priorité 2 : taux de remplissage le plus faible pour équilibrer (poids 10)
+        const score = (levelDiff * 100) + (fillMetric * 10);
+        if (score < minScore) minScore = score;
+        return { index, score };
+    });
+
+    const EPS = 0.001;
+    const bestCandidates = scored.filter(s => s.score <= minScore + EPS).map(s => s.index);
+    const chosenGroupIndex = bestCandidates[Math.floor(Math.random() * bestCandidates.length)];
+
+    groups[chosenGroupIndex].players.push({ nom: player.nom, prenom: player.prenom, niveau: player.niveau });
+}
+
 function generateGroups() {
     const selectedTraining = trainingSelect.value;
-    if (!selectedTraining) { showToast('Selecionne un entra\'nement.', 'info'); return; }
+    if (!selectedTraining) { showToast('Sélectionne un entraînement.', 'info'); return; }
 
     const numGroups = Math.max(2, Math.min(10, parseInt(groupCountInput.value) || 3));
     const targetLevels = Array.from(document.querySelectorAll('.targetLevelSelect')).map(s => s.value);
@@ -230,7 +282,7 @@ function generateGroups() {
         return;
     }
 
-    // Prepare players: keep level priority but shuffle within same level
+    // Prepare players: group by level and shuffle within same level
     const levelsOrder = ['A', 'B+', 'B', 'B-', 'C'];
     const byLevel = {};
     levelsOrder.forEach(l => byLevel[l] = []);
@@ -239,76 +291,39 @@ function generateGroups() {
         byLevel[p.niveau].push(p);
     });
     levelsOrder.forEach(l => shuffleInPlace(byLevel[l]));
-    const flattened = [];
-    levelsOrder.forEach(l => flattened.push(...byLevel[l]));
 
-    const targetNum = {'A':3,'B':2,'C':1};
+    const targetNum = {'A': 3, 'B': 2, 'C': 1};
     const groups = targetLevels.map((t, i) => ({
         target: t, targetNum: targetNum[t], players: [], capacity: sizes[i] || 0
     }));
 
-    // Find shared target levels across groups
-    const levelCounts = {};
-    targetLevels.forEach(t => levelCounts[t] = (levelCounts[t] || 0) + 1);
-    const sharedLevels = Object.entries(levelCounts).filter(([,c]) => c > 1).map(([l]) => l);
+    // Répartition par ordre de contrainte (Most Constrained First) :
+    // 1. Joueurs les plus contraints : 'A' (Groupe A uniquement) et 'C' (Groupe C uniquement)
+    const priority1 = [...byLevel['A'], ...byLevel['C']];
+    priority1.forEach(p => assignPlayerToBestGroup(p, groups));
 
-    // First pass: assign exact-level players to shared groups, spread evenly (round-robin) after shuffle
-    for (const level of sharedLevels) {
-        const matchingPlayers = (byLevel[level] || []).slice();
-        shuffleInPlace(matchingPlayers);
-        const matchingGroupIndices = targetLevels.map((t, i) => t === level ? i : -1).filter(i => i !== -1);
-        matchingPlayers.forEach((p, idx) => {
-            const groupIndex = matchingGroupIndices[idx % matchingGroupIndices.length];
-            if (groups[groupIndex].players.length < groups[groupIndex].capacity) {
-                groups[groupIndex].players.push({ nom: p.nom, prenom: p.prenom, niveau: p.niveau });
+    // 2. Joueurs à flexibilité intermédiaire : 'B+' (Groupes A ou B) et 'B-' (Groupes B ou C)
+    const priority2 = [...byLevel['B+'], ...byLevel['B-']];
+    shuffleInPlace(priority2);
+    priority2.forEach(p => assignPlayerToBestGroup(p, groups));
+
+    // 3. Joueurs les plus flexibles : 'B' (Groupes A, B ou C, avec priorité naturelle pour le Groupe B)
+    const priority3 = [...byLevel['B']];
+    priority3.forEach(p => assignPlayerToBestGroup(p, groups));
+
+    // Vérification des dépassements éventuels ou incompatibilités forcées
+    let overflowCount = 0;
+    let incompatibleCount = 0;
+    groups.forEach((g) => {
+        if (g.players.length > g.capacity) {
+            overflowCount += (g.players.length - g.capacity);
+        }
+        g.players.forEach(p => {
+            if (!isLevelAllowed(p.niveau, g.target)) {
+                incompatibleCount++;
             }
         });
-    }
-
-    // Second pass: assign remaining players based on best match but use randomness to break ties
-    const assignedSet = new Set();
-    for (const g of groups) g.players.forEach(p => assignedSet.add((p.nom + '|' + p.prenom)));
-    const remainingPlayers = flattened.filter(p => !assignedSet.has(p.nom + '|' + p.prenom));
-    shuffleInPlace(remainingPlayers);
-
-    for (const player of remainingPlayers) {
-        let bestScore = Infinity;
-        const scores = [];
-        for (let g = 0; g < numGroups; g++) {
-            const spaceLeft = groups[g].capacity - groups[g].players.length;
-            if (spaceLeft <= 0) {
-                scores.push({ g, score: Infinity });
-                continue;
-            }
-            const levelDiff = Math.abs(player.niveauNum - groups[g].targetNum);
-            const sizePenalty = (groups[g].players.length) * 0.01;
-            const score = levelDiff * 10 + sizePenalty;
-            scores.push({ g, score });
-            if (score < bestScore) bestScore = score;
-        }
-
-        const EPS = 0.001;
-        const candidates = scores.filter(s => isFinite(s.score) && s.score <= bestScore + EPS).map(s => s.g);
-
-        let chosenGroup = -1;
-        if (candidates.length === 0) {
-            // fallback: choose any group with space (smallest current size)
-            let minSize = Infinity;
-            for (let g = 0; g < numGroups; g++) {
-                if (groups[g].players.length < minSize && groups[g].players.length < groups[g].capacity) {
-                    minSize = groups[g].players.length;
-                    chosenGroup = g;
-                }
-            }
-            if (chosenGroup === -1) chosenGroup = 0;
-        } else if (candidates.length === 1) {
-            chosenGroup = candidates[0];
-        } else {
-            chosenGroup = candidates[Math.floor(Math.random() * candidates.length)];
-        }
-
-        groups[chosenGroup].players.push({ nom: player.nom, prenom: player.prenom, niveau: player.niveau });
-    }
+    });
 
     // Final sort inside groups for stable display (alphabetical)
     groups.forEach(g => g.players.sort((a, b) => a.nom.localeCompare(b.nom)));
@@ -316,6 +331,12 @@ function generateGroups() {
     generatedGroups = groups;
     btnToggleLevels.disabled = false;
     renderGroups();
+
+    if (incompatibleCount > 0) {
+        showToast(`Attention : ${incompatibleCount} joueur(s) n'ont pas pu respecter les règles de niveau (aucun groupe adapté configuré).`, 'info');
+    } else if (overflowCount > 0) {
+        showToast(`Groupes générés ! (${overflowCount} place(s) excédentaire(s) pour respecter les niveaux)`, 'info');
+    }
 }
 
 function renderGroups() {
