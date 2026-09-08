@@ -61,7 +61,7 @@
 
         .container {
             width: 100%;
-            max-width: 1280px;
+            max-width: 1440px;
             margin: 0 auto;
             padding: 2rem 1.5rem;
             flex-grow: 1;
@@ -110,18 +110,10 @@
             font-weight: 400;
         }
 
-        /* Main Workspace Grid */
+        /* Main Workspace */
         .workspace {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 2rem;
-            animation: fadeIn 1s ease-out;
-        }
-
-        @media (min-width: 1024px) {
-            .workspace {
-                grid-template-columns: 450px 1fr;
-            }
+            width: 100%;
+            display: block;
         }
 
         /* Glassmorphic Panel Card */
@@ -632,12 +624,19 @@
             grid-template-columns: 1fr;
             gap: 2rem;
             animation: fadeIn 0.3s ease-out;
+            width: 100%;
         }
 
         @media (min-width: 1024px) {
             .tab-panel.active {
-                grid-template-columns: 450px 1fr;
+                grid-template-columns: 380px 1fr;
             }
+        }
+
+        #groupsOutput {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1rem;
         }
 
         .btn-row {

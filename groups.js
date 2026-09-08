@@ -408,7 +408,16 @@ btnToggleLevels.addEventListener('click', () => {
 
 // PRINT - Optimized popup with A4 layout in 2 columns (compact for single page)
 btnPrintGroups.addEventListener('click', () => {
-    
+    let quote = document.getElementById('printQuote')?.value?.trim() || '';
+    if (!quote) {
+        const entered = prompt("Ajouter une courte citation ou un mot en haut de page pour l'impression (laisser vide sinon) :", "");
+        if (entered !== null && entered.trim() !== '') {
+            quote = entered.trim();
+            const quoteInput = document.getElementById('printQuote');
+            if (quoteInput) quoteInput.value = quote;
+        }
+    }
+
     // Create HTML content for print
     let printHTML = `
         <!DOCTYPE html>
@@ -416,25 +425,82 @@ btnPrintGroups.addEventListener('click', () => {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Groupes d'entrainement</title>
+            <title></title>
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { font-family: 'Arial', sans-serif; background: white; color: #333; padding: 12px; line-height: 1.2; }
-                .print-container { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 210mm; margin: 0 auto; }
-                .group-card { break-inside: avoid; page-break-inside: avoid; border: 1.5px solid #333; padding: 10px; background: #f9f9f9; border-radius: 4px; }
-                .group-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; border-bottom: 1.5px solid #333; padding-bottom: 4px; }
-                .group-title { font-size: 14px; font-weight: bold; color: #1a1a1a; }
-                .group-count { font-size: 11px; color: #666; font-weight: bold; }
-                .group-level { font-size: 11px; color: white; background: #333; padding: 2px 6px; border-radius: 3px; font-weight: bold; }
-                .player-list { display: flex; flex-direction: column; gap: 2px; }
-                .player-item { font-size: 12px; padding: 2px 4px; background: white; border-radius: 2px; line-height: 1.3; }
-                .player-name { font-weight: 500; }
-                .player-level { color: #666; font-size: 11px; margin-left: 3px; }
-                @media print { body { padding: 8px; margin: 0; } .print-container { gap: 10px; } .group-card { break-inside: avoid; page-break-inside: avoid; } }
-                @page { size: A4; margin: 8mm; }
+                body { 
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; 
+                    background: white; 
+                    color: #1a1a1a; 
+                    padding: 6mm 8mm; 
+                    line-height: 1.2; 
+                }
+                @page { size: A4 portrait; margin: 6mm 8mm; }
+                @media print { 
+                    body { padding: 0; margin: 0; } 
+                    .print-container { gap: 8px; } 
+                    .group-card { break-inside: avoid; page-break-inside: avoid; } 
+                }
+                
+                .print-header {
+                    text-align: center;
+                    margin-bottom: 8px;
+                    padding-bottom: 6px;
+                    border-bottom: 1px solid #ddd;
+                }
+                .print-quote {
+                    font-size: 13.5px;
+                    font-style: italic;
+                    color: #2c3e50;
+                    font-family: Georgia, serif;
+                }
+
+                .print-container { 
+                    display: grid; 
+                    grid-template-columns: 1fr 1fr; 
+                    gap: 10px; 
+                    max-width: 100%; 
+                    margin: 0 auto; 
+                }
+                .group-card { 
+                    border: 1.5px solid #222; 
+                    padding: 6px 10px; 
+                    background: #fafafa; 
+                    border-radius: 4px; 
+                }
+                .group-header { 
+                    display: flex; 
+                    justify-content: space-between; 
+                    align-items: baseline; 
+                    margin-bottom: 5px; 
+                    border-bottom: 1.5px solid #222; 
+                    padding-bottom: 3px; 
+                }
+                .group-title { font-size: 15px; font-weight: bold; color: #111; }
+                .group-count { font-size: 12px; color: #555; font-weight: bold; }
+                
+                .player-list { display: flex; flex-direction: column; gap: 2.5px; }
+                .player-item { 
+                    font-size: 13.5px; 
+                    padding: 2.5px 6px; 
+                    background: white; 
+                    border: 1px solid #eaeaea; 
+                    border-radius: 2px; 
+                    line-height: 1.25; 
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+                .player-name { font-weight: 600; color: #111; }
+                .player-level { color: #666; font-size: 11px; margin-left: 4px; font-weight: normal; }
             </style>
         </head>
         <body>
+            ${quote ? `
+            <div class="print-header">
+                <div class="print-quote">« ${quote.replace(/^«\s*|\s*»$/g, '')} »</div>
+            </div>` : ''}
+
             <div class="print-container">
     `;
     
@@ -473,7 +539,6 @@ btnPrintGroups.addEventListener('click', () => {
     const printWindow = window.open('', '_blank');
     printWindow.document.write(printHTML);
     printWindow.document.close();
-    //setTimeout(() => printWindow.print(), 250);
 });
 
 // COPY
