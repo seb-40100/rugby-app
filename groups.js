@@ -378,15 +378,45 @@ function generateGroups() {
 function renderGroups() {
     groupsOutput.innerHTML = '';
     generatedGroups.forEach((group, i) => {
+        // Group container – make it a drop target
         const div = document.createElement('div');
+        div.dataset.groupIdx = i;
         div.style.cssText = 'background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-md); padding: 1rem;';
-        let html = `<h4 style="margin-bottom: 0.5rem; font-size: 1rem; color: var(--primary);">Groupe ${i+1} - ${group.players.length} joueurs</h4>`;
-        html += '<div style="display: flex; flex-direction: column; gap: 0.25rem;">';
-        group.players.forEach(p => {
-            html += `<div style="padding: 0.25rem 0.5rem; font-size: 0.85rem;">${p.nom} ${p.prenom}${showNiveaux ? ` <span style="color: var(--text-muted); font-size: 0.75rem;">(${p.niveau})</span>` : ''}</div>`;
+        div.addEventListener('dragover', e => e.preventDefault());
+        div.addEventListener('drop', e => {
+            e.preventDefault();
+            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+            const srcIdx = data.srcGroup;
+            const playerIdx = data.playerIdx;
+            const targetIdx = parseInt(div.dataset.groupIdx);
+            if (srcIdx === targetIdx) return; // no move needed
+            // Move player object
+            const player = generatedGroups[srcIdx].players.splice(playerIdx, 1)[0];
+            generatedGroups[targetIdx].players.push(player);
+            renderGroups();
         });
-        html += '</div>';
-        div.innerHTML = html;
+// Header for the group
+        const header = document.createElement('h4');
+        header.style.cssText = 'margin-bottom: 0.5rem; font-size: 1rem; color: var(--primary);';
+        header.textContent = `Groupe ${i+1} - ${group.players.length} joueurs`;
+        // Container for player items
+        const playersContainer = document.createElement('div');
+        playersContainer.style.cssText = 'display: flex; flex-direction: column; gap: 0.25rem;';
+        group.players.forEach((p, pIdx) => {
+            const playerDiv = document.createElement('div');
+            playerDiv.draggable = true;
+            playerDiv.dataset.playerIdx = pIdx;
+            playerDiv.dataset.groupIdx = i;
+            playerDiv.style.cssText = 'padding: 0.25rem 0.5rem; font-size: 0.85rem; cursor: move;';
+            playerDiv.textContent = `${p.nom} ${p.prenom}` + (showNiveaux ? ` (${p.niveau})` : '');
+            playerDiv.addEventListener('dragstart', e => {
+                e.dataTransfer.setData('text/plain', JSON.stringify({ srcGroup: i, playerIdx: pIdx }));
+                e.dataTransfer.effectAllowed = 'move';
+            });
+            playersContainer.appendChild(playerDiv);
+        });
+        div.appendChild(header);
+        div.appendChild(playersContainer);
         groupsOutput.appendChild(div);
     });
     btnCopyGroups.disabled = false;
