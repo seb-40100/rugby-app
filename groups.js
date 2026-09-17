@@ -393,6 +393,8 @@ function renderGroups() {
             // Move player object
             const player = generatedGroups[srcIdx].players.splice(playerIdx, 1)[0];
             generatedGroups[targetIdx].players.push(player);
+            // Keep each group's players sorted alphabetically by name
+            generatedGroups.forEach(g => g.players.sort((a, b) => a.nom.localeCompare(b.nom)));
             renderGroups();
         });
 // Header for the group
